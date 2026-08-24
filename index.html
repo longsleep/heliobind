@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!--
+      The content security policy is injected here by scripts/build.ts, and deliberately not written
+      in this file. It forbids network access outright, which the development server cannot live with:
+      that server injects an inline script and opens a WebSocket for hot reload, so a policy strict
+      enough to be worth having in production stops the page loading while it is being worked on.
+
+      Putting it in the build means the policy that ships is exact and verifiable in dist/index.html,
+      and the cost is that a violation introduced during development only surfaces at build time. The
+      build fails rather than shipping a page without it.
+    -->
+    <meta name="referrer" content="no-referrer">
+    <meta name="color-scheme" content="light dark">
+
+    <title>NEXA 2000 — Bluetooth setup</title>
+    <link rel="stylesheet" href="./src/ui/app.css">
+  </head>
+
+  <body>
+    <main>
+      <h1>NEXA 2000 — Bluetooth setup</h1>
+
+      <p id="unsupported" hidden>
+        This browser cannot use Bluetooth from a web page. Chrome on Android is required; no browser on iOS
+        supports it.
+      </p>
+
+      <section id="app" hidden>
+        <p class="note">
+          Read-only. This version can find a device and read its settings; it cannot change anything.
+        </p>
+
+        <button id="connect" type="button">Find a device</button>
+
+        <dl id="device" hidden>
+          <dt>Name</dt>
+          <dd id="device-name">—</dd>
+          <dt>Status</dt>
+          <dd id="device-status">—</dd>
+        </dl>
+
+        <div id="readout" hidden>
+          <label for="param">Parameter</label>
+          <select id="param"></select>
+          <button id="read" type="button">Read</button>
+          <pre id="result" aria-live="polite"></pre>
+        </div>
+      </section>
+
+      <footer>
+        <p id="build">—</p>
+      </footer>
+    </main>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

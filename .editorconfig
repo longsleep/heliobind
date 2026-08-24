@@ -1,0 +1,32 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{ts,js,mjs}]
+# Matches the printWidth in the formatter configuration; keep the two in step.
+max_line_length = 110
+
+[*.{json,jsonc,yaml,yml,html,css}]
+indent_size = 2
+
+[*.md]
+# Two trailing spaces are a hard line break in Markdown; stripping them silently
+# reflows the text.
+trim_trailing_whitespace = false
+
+[*.{diff,patch}]
+# Leading and trailing whitespace is significant in a patch.
+trim_trailing_whitespace = false
+insert_final_newline = false
+
+[bun.lock]
+# Generated. Left alone so a formatter cannot produce a diff the package manager
+# will immediately undo.
+trim_trailing_whitespace = false
+insert_final_newline = false

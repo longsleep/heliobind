@@ -1,0 +1,29 @@
+{
+  "name": "nexa-ble-provision",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Find, read and provision a Growatt NEXA 2000 over Bluetooth, from a browser",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "bun@1.4.0",
+  "engines": {
+    "bun": "1.4.0"
+  },
+  "scripts": {
+    "dev": "bun ./index.html",
+    "build": "bun run scripts/build.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "check": "bun run lint && bun run typecheck && bun test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@biomejs/biome": "2.5.10",
+    "@types/bun": "1.4.0",
+    "@types/web-bluetooth": "0.0.21",
+    "typescript": "7.0.2"
+  },
+  "trustedDependencies": []
+}

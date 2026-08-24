@@ -1,0 +1,33 @@
+# Dependencies. Restored with `bun install --frozen-lockfile`.
+/node_modules/
+
+# bun.lock is deliberately NOT ignored. It is the text lockfile, reviewable in a
+# diff, and it is what makes an install reproducible. Committing it is the whole
+# point of pinning versions.
+
+# Build output
+/dist/
+*.tsbuildinfo
+
+# Local configuration. .env.example documents what is available and is committed;
+# the actual values are not. Bun loads .env.local automatically.
+.env
+.env.*
+!.env.example
+
+# Captures kept next to the code while debugging a session. Bluetooth captures
+# contain the network credentials that were being provisioned at the time, so
+# they must never be committed.
+*.log
+*.btsnoop
+*.pcap
+*.pcapng
+
+# Editors and OS
+.idea/
+*.iml
+.vscode/
+.zed/
+*.swp
+*~
+.DS_Store

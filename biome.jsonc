@@ -1,0 +1,79 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+
+  // Honour .gitignore, so generated output is never linted or reformatted.
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": { "includes": ["src/**", "scripts/**", "*.json", "*.jsonc", "*.html"] },
+
+  "formatter": {
+    "enabled": true,
+    // .editorconfig is the single source of truth for indentation and width; the values
+    // repeated below are only the fallbacks for editors that ignore it.
+    "useEditorconfig": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 110
+  },
+
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+
+      "correctness": {
+        "noUndeclaredVariables": "error",
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error"
+      },
+
+      "suspicious": {
+        // `any` defeats the reason this project is written in TypeScript at all: the risky code
+        // is byte-level, and that is exactly where a widened type hides a mistake.
+        "noExplicitAny": "error",
+        // The app handles a Wi-Fi passphrase. Logging is how a secret escapes by accident, so
+        // console.log needs a deliberate override rather than being available by default.
+        "noConsole": { "level": "error", "options": { "allow": ["warn", "error"] } },
+        "noDebugger": "error"
+      },
+
+      "style": {
+        "useConst": "error",
+        "useTemplate": "error",
+        // `arr[i]!` is the idiomatic companion to noUncheckedIndexedAccess: the bound has
+        // already been checked, and the alternative is noise at every array access.
+        "noNonNullAssertion": "off"
+      },
+
+      "complexity": {
+        "noExcessiveCognitiveComplexity": { "level": "warn", "options": { "maxAllowedComplexity": 15 } }
+      },
+
+      // Off by default: unstable rules should not be able to fail a build on an upgrade.
+      "nursery": { "recommended": false }
+    }
+  },
+
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always"
+    },
+    // Runtime globals used by the build script. Declared individually so that
+    // noUndeclaredVariables stays on for everything else.
+    "globals": ["Bun", "HTMLRewriter"]
+  },
+
+  "overrides": [
+    {
+      // Tests build byte vectors by hand and print diagnostics when a vector fails.
+      "includes": ["**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noConsole": "off" }
+        }
+      }
+    }
+  ]
+}
