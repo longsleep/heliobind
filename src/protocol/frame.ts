@@ -30,8 +30,19 @@ export type Bytes = Uint8Array<ArrayBuffer>;
 export const HEADER_LEN = 8;
 export const CRC_LEN = 2;
 
+/** Shortest frame that can exist: a header and a CRC, with an empty body. */
+export const MIN_FRAME_LEN = HEADER_LEN + CRC_LEN;
+
 /** Protocol version. The MQTT transport of the same device carries 7 here. */
 export const PROTOCOL = 0x0006;
+
+/**
+ * Protocol version the device answers with.
+ *
+ * Requests carry 6 and replies carry 7 — an asymmetry, and a real one: a client must send 6 and must not
+ * insist on it coming back.
+ */
+export const PROTOCOL_REPLY = 0x0007;
 
 /** Unit address. Datalogger-scoped messages still arrive under 0x01 on this interface. */
 export const ADDRESS = 0x01;
@@ -186,6 +197,28 @@ export function build(fn: number, encryptedBody: Bytes, plaintextLen: number): B
 export function declaredLength(bytes: Bytes): number | null {
   if (bytes.length < 2) return null;
   return readU16(bytes, 0) + 2;
+}
+
+/**
+ * Whether a buffer can be the start of a frame: `true` if it looks like one, `false` if it certainly is
+ * not, `null` if there is not yet enough to tell.
+ *
+ * Needed because not everything the device sends is a frame. On subscribing it emits the counter left in
+ * the firmware by the Espressif example it was built from — `00 01 02 … 0e` — whose first two octets
+ * declare a total length of three. A reassembler trusting the length field alone hands that back as a
+ * complete frame, and the real reply then arrives with nowhere to go.
+ *
+ * Two checks reject it: no frame is shorter than a header plus a CRC, and the protocol field is 6 or 7,
+ * never the 0x0203 the counter leaves there.
+ */
+export function looksLikeFrame(bytes: Bytes): boolean | null {
+  const declared = declaredLength(bytes);
+  if (declared === null) return null;
+  if (declared < MIN_FRAME_LEN) return false;
+
+  if (bytes.length < 4) return null;
+  const protocol = readU16(bytes, 2);
+  return protocol === PROTOCOL || protocol === PROTOCOL_REPLY;
 }
 
 /**

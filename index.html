@@ -35,21 +35,39 @@
           Read-only. This version can find a device and read its settings; it cannot change anything.
         </p>
 
-        <button id="connect" type="button">Find a device</button>
+        <label for="key">Key presented on connecting</label>
+        <input id="key" type="text" autocomplete="off" spellcheck="false" placeholder="key">
+
+        <div class="actions">
+          <button id="connect" type="button">Find a device</button>
+        </div>
 
         <dl id="device" hidden>
           <dt>Name</dt>
           <dd id="device-name">—</dd>
           <dt>Status</dt>
           <dd id="device-status">—</dd>
+          <dt>Reported serial</dt>
+          <dd id="device-serial">—</dd>
         </dl>
 
         <div id="readout" hidden>
           <label for="param">Parameter</label>
           <select id="param"></select>
-          <button id="read" type="button">Read</button>
+          <div class="actions">
+            <button id="read" type="button">Read</button>
+            <button id="read-all" type="button">Read all</button>
+            <button id="info" type="button">Read 0xFF02</button>
+          </div>
           <pre id="result" aria-live="polite"></pre>
         </div>
+
+        <!--
+          Outside the block above, which is hidden when the device goes away. The log is most valuable
+          precisely at that moment, so it must survive a disconnect.
+        -->
+        <label for="log">Everything the device has sent</label>
+        <pre id="log">nothing yet</pre>
       </section>
 
       <footer>

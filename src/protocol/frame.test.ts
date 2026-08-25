@@ -1,13 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import {
   ADDRESS,
+  type Bytes,
   build,
   crc16,
   declaredLength,
   FrameError,
   FUNCTION,
   fromHex,
+  looksLikeFrame,
   PROTOCOL,
+  PROTOCOL_REPLY,
   parse,
   readConfigBody,
   readU16,
@@ -123,6 +126,37 @@ describe("build and parse", () => {
 
   test("rejects a runt", () => {
     expect(() => parse(new Uint8Array(4))).toThrow(/shorter than/);
+  });
+});
+
+describe("looksLikeFrame", () => {
+  test("rejects the counter the firmware sends on subscribing", () => {
+    // 00 01 02 ... 0e. Its first two octets declare a total of three, so a reassembler that trusts the
+    // length field alone hands it back as a complete frame and loses the real reply.
+    const counter = fromHex("00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e");
+    expect(looksLikeFrame(counter)).toBe(false);
+  });
+
+  test("accepts a frame this module built", () => {
+    const frame = build(FUNCTION.readConfig, new Uint8Array(16) as Bytes, 14);
+    expect(looksLikeFrame(frame)).toBe(true);
+  });
+
+  test("accepts a reply, which carries protocol 7 rather than 6", () => {
+    const reply = build(FUNCTION.readConfig, new Uint8Array(16) as Bytes, 14);
+    writeU16(reply, 2, PROTOCOL_REPLY);
+    expect(looksLikeFrame(reply)).toBe(true);
+  });
+
+  test("rejects a plausible length carrying an implausible protocol", () => {
+    const frame = build(FUNCTION.readConfig, new Uint8Array(16) as Bytes, 14);
+    writeU16(frame, 2, 0x0203);
+    expect(looksLikeFrame(frame)).toBe(false);
+  });
+
+  test("waits rather than guessing while the header is incomplete", () => {
+    expect(looksLikeFrame(new Uint8Array(0) as Bytes)).toBeNull();
+    expect(looksLikeFrame(fromHex("00 18"))).toBeNull();
   });
 });
 

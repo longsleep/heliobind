@@ -9,22 +9,32 @@
  * `confidence: "inferred"` is a guess from context.
  */
 
+/**
+ * The parameter carrying the handshake key.
+ *
+ * Not in the table below and never writable through the ordinary path: presenting it is authentication, not
+ * configuration, and {@link Device.open} is the only thing that writes it.
+ */
+export const KEY_PARAM = 54;
+
 export interface Param {
   readonly number: number;
   readonly name: string;
   readonly summary: string;
   /** Whether this app is permitted to write it. */
   readonly writable: boolean;
-  readonly confidence: "vendor-app" | "inferred";
+  /** `device` where a read from the hardware confirmed it; otherwise how it was arrived at. */
+  readonly confidence: "device" | "vendor-app" | "inferred";
 }
 
 export const PARAMS: readonly Param[] = [
   {
     number: 17,
     name: "server_address",
-    summary: "Hostname or address the device reports to. Untested whether the device honours a change.",
+    summary:
+      "Hostname or address the device reports to. Reads back the vendor's broker; a write is untested.",
     writable: false,
-    confidence: "inferred",
+    confidence: "device",
   },
   {
     number: 32,
@@ -36,9 +46,9 @@ export const PARAMS: readonly Param[] = [
   {
     number: 54,
     name: "bind_key",
-    summary: "Account binding key. The vendor app writes it during provisioning; a precondition, possibly.",
+    summary: "The handshake key. Presented on connect; see KEY_PARAM.",
     writable: false,
-    confidence: "vendor-app",
+    confidence: "device",
   },
   {
     number: 55,
@@ -51,23 +61,23 @@ export const PARAMS: readonly Param[] = [
   {
     number: 56,
     name: "wifi_ssid",
-    summary: "Wi-Fi network name. Writing this wrongly takes the device off the network.",
+    summary: "Wi-Fi network name. Readable in clear. Writing this wrongly takes the device off the network.",
     writable: false,
-    confidence: "vendor-app",
+    confidence: "device",
   },
   {
     number: 57,
     name: "wifi_password",
-    summary: "Wi-Fi passphrase.",
+    summary: "Wi-Fi passphrase. Returned in clear by a read.",
     writable: false,
-    confidence: "vendor-app",
+    confidence: "device",
   },
   {
     number: 60,
     name: "unknown_60",
-    summary: "Read by the vendor app during provisioning. Contents unknown.",
+    summary: 'Reads back "16". Meaning unestablished.',
     writable: false,
-    confidence: "inferred",
+    confidence: "device",
   },
 ];
 

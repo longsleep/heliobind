@@ -6,20 +6,16 @@
  *
  * Two facts shape the design:
  *
- * - **MTU is not exposed.** Web Bluetooth negotiates it and does not say what it got, and reports of what
- *   Chrome on Android settles on are inconsistent. Writes are therefore split to a conservative size and the
- *   device reassembles, which is what its length-prefixed framing is for.
+ * - **MTU is not exposed.** Web Bluetooth negotiates it and does not say what it got. Frames are written
+ *   whole regardless, because the device does not reassemble split writes — see {@link Connection.write}.
  * - **Replies arrive in pieces.** Notifications carry fragments; the first two octets of the first fragment
  *   declare the total. {@link Connection.request} accumulates until that total is satisfied.
  */
 
-import { type Bytes, declaredLength } from "../protocol/frame.ts";
+import { type Bytes, declaredLength, looksLikeFrame } from "../protocol/frame.ts";
 
 /** Vendor service. Filtering on it identifies this family of device rather than one unit. */
 export const SERVICE = 0x00ff;
-
-/** Request and response share one characteristic: write here, and the answer arrives as a notification. */
-export const CHARACTERISTIC_IO = 0x0ff1_0000;
 
 /**
  * The UUIDs, spelled out. Web Bluetooth accepts a 16-bit number for the service, but the characteristics
@@ -31,19 +27,18 @@ export const UUID = {
   io: "0000ff01-0000-1000-8000-00805f9b34fb",
   /** Read-only. Returns a short constant. */
   info: "0000ff02-0000-1000-8000-00805f9b34fb",
+  /** The vendor's second write target, write-without-response. Purpose unestablished. */
+  ff04: "0000ff04-0000-1000-8000-00805f9b34fb",
 } as const;
-
-/**
- * Octets per write.
- *
- * Chosen to fit the smallest MTU a link may end up with — 23 octets, leaving 20 for payload — because the
- * API gives no way to discover the real value. Larger writes may work and would be faster; they may also be
- * silently truncated, which is worse than slow.
- */
-const CHUNK = 20;
 
 /** How long to wait for a reply before giving up. */
 const REPLY_TIMEOUT_MS = 5_000;
+
+/** Where and how to write, for the diagnostics in {@link Connection.requestVia}. */
+export interface Route {
+  readonly characteristic: "io" | "ff04";
+  readonly withoutResponse: boolean;
+}
 
 export class BleError extends Error {}
 
@@ -68,6 +63,17 @@ export async function choose(): Promise<BluetoothDevice> {
 
 /** An open connection to one device. */
 export class Connection {
+  /**
+   * Called for every notification the device sends, whenever it sends one.
+   *
+   * Separate from the reply collection in {@link request} on purpose: it also catches what arrives
+   * unprompted, which is the only way to tell "the device said nothing" apart from "the device said
+   * something we failed to assemble". The first notification after subscribing is usually the Espressif
+   * example's counter, `00 01 02 … 0e`, which means the transport works and the vendor firmware never
+   * replaced that handler.
+   */
+  onNotification: ((data: Bytes) => void) | null = null;
+
   private constructor(
     readonly device: BluetoothDevice,
     private readonly io: BluetoothRemoteGATTCharacteristic,
@@ -80,8 +86,14 @@ export class Connection {
     const server = await gatt.connect();
     const service = await server.getPrimaryService(UUID.service);
     const io = await service.getCharacteristic(UUID.io);
+
+    const connection = new Connection(device, io);
+    io.addEventListener("characteristicvaluechanged", () => {
+      const value = io.value;
+      if (value) connection.onNotification?.(new Uint8Array(value.buffer.slice(0)) as Bytes);
+    });
     await io.startNotifications();
-    return new Connection(device, io);
+    return connection;
   }
 
   get connected(): boolean {
@@ -120,14 +132,44 @@ export class Connection {
     return reply;
   }
 
-  /** Write a frame, split into chunks the smallest plausible MTU can carry. */
-  private async write(frame: Bytes): Promise<void> {
-    for (let at = 0; at < frame.length; at += CHUNK) {
-      const chunk = frame.subarray(at, Math.min(at + CHUNK, frame.length));
-      // writeValueWithoutResponse would be faster but gives no backpressure, and a dropped fragment
-      // leaves the device waiting on a length it will never reach.
-      await this.io.writeValueWithResponse(chunk);
+  /**
+   * Send a frame by a route other than the default, and report the reply.
+   *
+   * Two things this can establish that the ordinary path cannot:
+   *
+   * - **`withoutResponse` is an MTU probe.** Web Bluetooth rejects a write-without-response longer than
+   *   the link's MTU less three, where the with-response path quietly falls back to an ATT long write. So
+   *   a failure here puts a number on the MTU, and a success proves the frame fits in one packet — which
+   *   would clear the MTU of suspicion entirely.
+   * - **`0xFF04` is the vendor's other write target**, used by its `sendDataNoResepone`. Nothing yet shows
+   *   what belongs there rather than on `0xFF01`.
+   */
+  async requestVia(frame: Bytes, route: Route): Promise<Bytes> {
+    if (!this.connected) throw new BleError("not connected");
+
+    let target = this.io;
+    if (route.characteristic === "ff04") {
+      const service = await this.device.gatt?.getPrimaryService(UUID.service);
+      if (!service) throw new BleError("not connected");
+      target = await service.getCharacteristic(UUID.ff04);
     }
+
+    const reply = this.collect();
+    if (route.withoutResponse) await target.writeValueWithoutResponse(frame);
+    else await target.writeValueWithResponse(frame);
+    return reply;
+  }
+
+  /**
+   * Write a frame in a single call.
+   *
+   * **One write per frame, never split.** The vendor app passes `split = false` to its Bluetooth library,
+   * and a version of this client that chunked to fit a 23-octet MTU got no reply at all — the device does
+   * not reassemble. Web Bluetooth will use an ATT long write if the frame exceeds the negotiated MTU, and a
+   * 26-octet read has been observed working, so the link settles well above the minimum in practice.
+   */
+  private async write(frame: Bytes): Promise<void> {
+    await this.io.writeValueWithResponse(frame);
   }
 
   /** Accumulate notification fragments into one frame. */
@@ -162,6 +204,14 @@ export class Connection {
         grown.set(buffer, 0);
         grown.set(fragment, buffer.length);
         buffer = grown;
+
+        // Not everything the device sends is a reply. Discard what cannot be a frame and keep waiting,
+        // rather than assembling it into something that will fail to parse — the firmware's leftover
+        // counter would otherwise be mistaken for an answer, and the real one arrive too late.
+        if (looksLikeFrame(buffer) === false) {
+          buffer = new Uint8Array(0) as Bytes;
+          return;
+        }
 
         const total = declaredLength(buffer);
         if (total !== null && buffer.length >= total) {
