@@ -179,14 +179,6 @@ footer {
   cursor: pointer;
 }
 
-/* Inline-flex so the row still counts as the marker's principal box and the triangle stays put. */
-.secrets summary .pane-heading {
-  display: inline-flex;
-  width: calc(100% - 1.5rem);
-  vertical-align: middle;
-  margin: 0;
-}
-
 .secrets label:first-of-type {
   margin-top: 0.75rem;
 }
@@ -284,8 +276,8 @@ pre:empty::before {
 /*
  * A pane's label and the button that empties it, on one line.
  *
- * `align-items: baseline` rather than `center` so the button sits on the label's text line instead of
- * floating against a heading whose line height it does not share.
+ * `align-items: center` rather than `baseline`: baseline lines up the text, which pushes a bordered button
+ * upward against a plain label.
  */
 .pane-heading {
   display: flex;
@@ -296,6 +288,14 @@ pre:empty::before {
 }
 
 /* The heading carries the spacing now, so the label must not add its own on top of it. */
+/* Inline-flex so the row still counts as the marker's principal box and the triangle stays put. */
+.secrets summary .pane-heading {
+  display: inline-flex;
+  width: calc(100% - 1.5rem);
+  vertical-align: middle;
+  margin: 0;
+}
+
 .pane-heading label {
   margin: 0;
 }

@@ -20,9 +20,15 @@ cannot change anything — there is no write path in the code at all yet.
 
 ## Requirements
 
-**Chrome on Android.** Web Bluetooth is not available in any browser on iOS, and the page will say so rather
-than failing at the first tap. A desktop Chrome with a Bluetooth adapter works too, if it is close enough to
-the device — a few metres of open air is not enough.
+**Chrome or Edge**, on Android, Windows, macOS or ChromeOS. Desktop works if the machine has a Bluetooth
+adapter and is close enough to the device — a few metres of open air is not enough.
+
+**On Linux, Web Bluetooth ships disabled.** Chromium calls Linux partially implemented and unsupported, so
+`navigator.bluetooth` does not exist until you enable
+`chrome://flags/#enable-experimental-web-platform-features` and restart. BlueZ 5.41 or newer is also needed.
+
+**No browser on iOS** supports it, whatever it is called; they are all Safari underneath. The page says so
+rather than failing at the first tap.
 
 Served over HTTPS, or from `localhost`. Web Bluetooth requires a secure context.
 
@@ -48,6 +54,23 @@ declines to remove for everyone else.
 
 ## Running it
 
+The quickest way, if you have [Bun](https://bun.com):
+
+```sh
+bunx heliobind
+```
+
+That serves the built app on `http://127.0.0.1:8787` and prints the address. Open it in Chrome. `--port`
+and `--host` are accepted.
+
+It has to be `bunx` rather than `npx`: the server is a TypeScript file run by Bun, and Node will not
+execute it.
+
+Localhost is a secure context, which is why this needs no certificate. It is also why it is the desktop
+path — a phone cannot reach your laptop's localhost. For that, see the reverse proxy below.
+
+### From a checkout
+
 ```sh
 bun install --frozen-lockfile
 bun run dev        # http://localhost:3000
@@ -56,15 +79,49 @@ bun run dev        # http://localhost:3000
 ```sh
 bun run check      # lint, types, tests
 bun run build      # static site into dist/
+bun run build:local  # the same, with the protocol constants compiled in
 ```
+
+`build` never compiles the constants in, even with `.env.local` present, and fails if one reaches the
+output by any other route. `build:local` is the opt-in for a copy you install on your own phone — do not
+publish what it produces.
 
 ### Testing on a phone
 
-Bluetooth needs a secure context, so the phone has to reach the page over HTTPS. The page itself does not
-terminate TLS — put it behind a proxy that does:
+Bluetooth needs a secure context, so the phone has to reach the page over HTTPS. This app does not
+terminate TLS; put a reverse proxy in front that does.
 
-Bluetooth needs a secure context, so the phone has to reach the page over HTTPS. Put an HTTPS reverse
-proxy in front and point it at the development server:
+The packaged server is the easier target. Leave it on loopback and let the proxy reach it there:
+
+```sh
+bunx heliobind                     # http://127.0.0.1:8787
+```
+
+```caddy
+# Caddyfile — Caddy obtains the certificate itself
+heliobind.example.org {
+    reverse_proxy 127.0.0.1:8787
+}
+```
+
+or with nginx, inside a server block that already has a certificate:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_set_header Host $host;
+}
+```
+
+If the proxy runs on a different machine, bind wider — `bunx heliobind --host 0.0.0.0` — and firewall the
+port. Do not open the plain HTTP port to the phone directly: without TLS the browser will not treat it as
+a secure context, and Bluetooth stays unavailable however the page looks.
+
+**No host allowlist to fight.** The packaged server answers whatever `Host` the proxy sends, so a DNS name
+works with nothing to configure. The development server is stricter — see below — which is the main reason
+to prefer `bunx heliobind` for this.
+
+To proxy the development server instead, while editing code:
 
 ```sh
 bun run dev --host=0.0.0.0

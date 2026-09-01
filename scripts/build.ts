@@ -49,6 +49,21 @@ const CSP = [
 const buildRef = process.env.BUILD_REF?.trim() || "development";
 
 /**
+ * Whether to compile the protocol constants into the page.
+ *
+ * Set by `bun run build:local`, and by nothing else. `.env.local` alone is not enough: it is read by the
+ * dev server, where prefilling is harmless, and would otherwise silently reach a tarball through any build
+ * run on this machine.
+ */
+const inlineConstants = process.env.HELIOBIND_INLINE === "1";
+
+/** The values that must not appear in a build that did not ask for them. */
+const constants = Object.entries(process.env)
+  .filter(([name]) => name.startsWith("BUN_PUBLIC_HELIOBIND_"))
+  .map(([, value]) => value)
+  .filter((value): value is string => Boolean(value));
+
+/**
  * Insert the policy immediately after the charset declaration.
  *
  * `HTMLRewriter` is a real parser, so this does not depend on how the source happens to be formatted —
@@ -82,10 +97,14 @@ const result = await Bun.build({
   minify: true,
   sourcemap: "none",
   plugins: [securityPolicy],
-  // Inline `BUN_PUBLIC_HELIOBIND_*` into the client bundle. This is how a build can carry the protocol constants of
-  // §"The constants this app does not ship": set them in .env.local and the fields come prefilled. The
-  // prefix is Bun's own opt-in, so nothing else from the environment can reach the browser by accident.
-  env: "BUN_PUBLIC_HELIOBIND_*",
+  // Inline `BUN_PUBLIC_HELIOBIND_*` into the client bundle. This is how a local build carries the protocol
+  // constants of README §"The constants this app does not ship": set them in .env.local and the fields
+  // come prefilled. The prefix is Bun's own opt-in, so nothing else in the environment can reach the
+  // browser by accident.
+  // Off unless asked for. A build that carries the protocol constants is a convenience for one phone; a
+  // build that carries them by accident is a publication. Inverting the default means the mistake has to
+  // be typed on purpose — `bun run build:local` — rather than being what happens when .env.local exists.
+  env: inlineConstants ? "BUN_PUBLIC_HELIOBIND_*" : "disable",
   define: {
     __BUILD_REF__: JSON.stringify(buildRef),
   },
@@ -139,7 +158,29 @@ const assets = [
 ];
 await writeFile(join(OUT, "sw.js"), serviceWorker(`heliobind-${buildRef}`, assets));
 
-console.error(`built ${result.outputs.length} files into ${OUT}/ as ${buildRef}`);
+/*
+ * Prove it, rather than trust the switch above.
+ *
+ * The check is the part that has to hold: if some later change gives the constants a second route into the
+ * bundle, `env: "disable"` would not stop it and nothing else would notice. Reading them from the
+ * environment is only how the search terms are obtained — on a machine that has none, there is nothing to
+ * find and this passes trivially.
+ */
+if (!inlineConstants) {
+  for (const output of result.outputs) {
+    const text = await readFile(output.path, "utf8").catch(() => "");
+    const found = constants.find((constant) => text.includes(constant));
+    if (found) {
+      console.error(`${output.path} carries a protocol constant; refusing to produce this build`);
+      process.exit(1);
+    }
+  }
+}
+
+console.error(
+  `built ${result.outputs.length} files into ${OUT}/ as ${buildRef}` +
+    (inlineConstants ? " with the protocol constants compiled in" : ""),
+);
 for (const output of result.outputs) {
   console.error(`  ${output.path.replace(`${process.cwd()}/`, "")}  ${output.size} bytes`);
 }

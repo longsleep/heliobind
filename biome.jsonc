@@ -67,6 +67,16 @@
 
   "overrides": [
     {
+      // The build and the server report what they did; standard output is their interface, not a leftover
+      // debugging aid.
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noConsole": "off" }
+        }
+      }
+    },
+    {
       // Tests build byte vectors by hand and print diagnostics when a vector fails.
       "includes": ["**/*.test.ts"],
       "linter": {
