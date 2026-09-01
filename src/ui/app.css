@@ -161,6 +161,50 @@ footer {
   flex: 1 1 8rem;
 }
 
+/*
+ * A pane's label and the button that empties it, on one line.
+ *
+ * `align-items: baseline` rather than `center` so the button sits on the label's text line instead of
+ * floating against a heading whose line height it does not share.
+ */
+.pane-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0 0.25rem;
+}
+
+/* The heading carries the spacing now, so the label must not add its own on top of it. */
+.pane-heading label {
+  margin: 0;
+}
+
+/*
+ * Small, and quiet until wanted. It empties a pane and cannot be undone, so it should not compete with the
+ * buttons that read from the device — but it must stay reachable, which is why only the border and text
+ * recede rather than the size.
+ */
+.clear {
+  flex: 0 0 auto;
+  /* Buttons carry a 2.75rem minimum so a thumb can find them. This one sits beside a label rather than in
+     a row of actions, and at that height it dominates the heading — so the floor is lowered here and the
+     target kept usable by the padding rather than by an empty box. */
+  min-height: 0;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  color: var(--muted, inherit);
+  background: none;
+  border: 1px solid currentColor;
+  opacity: 0.7;
+}
+
+.clear:hover,
+.clear:focus-visible {
+  opacity: 1;
+}
+
 /* An attribute selector already outranks the type selectors above, so this needs no !important. */
 [hidden] {
   display: none;

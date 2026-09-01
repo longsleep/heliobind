@@ -6,15 +6,24 @@
  */
 
 import { AuthenticationError, Device } from "../device.ts";
-import { PARAMS } from "../protocol/params.ts";
+import {
+  describe,
+  everyParam,
+  numbersOf,
+  PARAM_SPACE_LAST,
+  PARAMS,
+  PROVISIONING,
+} from "../protocol/params.ts";
 import { Connection, choose, isSupported } from "../transport/ble.ts";
 import {
+  appendResult,
+  clearLog,
+  clearResult,
   describeError,
   dom,
   fillParameters,
   log,
-  renderResponse,
-  setResult,
+  renderValue,
   setStatus,
   visibility,
   whileBusy,
@@ -62,11 +71,11 @@ async function connect(): Promise<void> {
     setStatus("ready");
     log(`authenticated; the device reports serial ${device.serial}`);
     visibility.readout(true);
-    setResult("Authenticated. Reads should now be answered.");
+    appendResult("Authenticated. Reads should now be answered.");
   } catch (error) {
     // Worth distinguishing: a refusal means the frame was understood and only the key was wrong.
     setStatus(error instanceof AuthenticationError ? "key refused" : "not connected");
-    setResult(describeError(error));
+    appendResult(describeError(error));
     log(describeError(error));
     dom.connect.disabled = false;
   }
@@ -81,18 +90,50 @@ function onDisconnected(): void {
   dom.connect.disabled = false;
 }
 
-async function readParams(params: readonly number[]): Promise<void> {
+/**
+ * Read a set of parameters, showing each as it arrives.
+ *
+ * One request per parameter. Not timidity: asking for many in one exchange makes the *reply* large — a
+ * single connection-event record is about ninety octets — and a reply that does not fit is lost whole,
+ * where a sequence of small ones is merely slow. {@link Device.sweep} takes the batch size, so raising it
+ * is a one-word change once a larger count has been shown to work over this transport.
+ *
+ * Results stream because the device answers slowly and out of order, and because a parameter that answers
+ * nothing is an ordinary outcome rather than a fault: the run says so and carries on.
+ */
+async function readSet(params: readonly number[], what: string): Promise<void> {
   const session = device;
   if (!session) return;
 
-  setResult(`reading ${params.length} parameter${params.length === 1 ? "" : "s"}…`);
-  await whileBusy([dom.read, dom.readAll], async () => {
-    try {
-      setResult(renderResponse(await session.read(params)));
-    } catch (error) {
-      setResult(describeError(error));
-      log(`read failed: ${describeError(error)}`);
+  appendResult(`reading ${what}…`);
+  await whileBusy([dom.read, dom.readProvisioning, dom.readSpace], async () => {
+    let held = 0;
+    let empty = 0;
+    let lost = 0;
+    for await (const answer of session.sweep(1, params)) {
+      switch (answer.kind) {
+        case "value":
+          // An empty value is an answer, not a value. Bluetooth returns a TLV for every parameter asked
+          // for, including the ones holding nothing, where the network path returns no TLV at all — so
+          // counting a present-but-empty entry as content would report a fuller device than there is.
+          if (answer.value.length > 0) {
+            held += 1;
+          } else {
+            empty += 1;
+          }
+          appendResult(`${describe(answer.param).padEnd(22)} ${renderValue(answer.value)}`);
+          break;
+        case "silent":
+          empty += answer.params.length;
+          break;
+        case "unanswered":
+          lost += answer.params.length;
+          log(`no answer for ${answer.params.join(", ")}: ${answer.reason}`);
+          break;
+      }
     }
+    appendResult(`\n${held} held a value, ${empty} answered nothing, ${lost} went unanswered`);
+    log(`read ${params.length} parameters: ${held} values, ${empty} empty, ${lost} lost`);
   });
 }
 
@@ -104,9 +145,9 @@ async function readInfo(): Promise<void> {
   await whileBusy([dom.info], async () => {
     try {
       const value = await link.readInfo();
-      setResult(`0xFF02 returned ${value.length} octets: ${new TextDecoder().decode(value)}`);
+      appendResult(`0xFF02 returned ${value.length} octets: ${new TextDecoder().decode(value)}`);
     } catch (error) {
-      setResult(describeError(error));
+      appendResult(describeError(error));
     }
   });
 }
@@ -125,7 +166,19 @@ export function start(): void {
   visibility.ready();
 
   dom.connect.addEventListener("click", () => void connect());
-  dom.read.addEventListener("click", () => void readParams([Number(dom.param.value)]));
-  dom.readAll.addEventListener("click", () => void readParams(PARAMS.map((param) => param.number)));
+  dom.read.addEventListener("click", () => {
+    const param = Number(dom.param.value);
+    void readSet([param], describe(param));
+  });
+  dom.readProvisioning.addEventListener(
+    "click",
+    () => void readSet(numbersOf(PROVISIONING), "the provisioning settings"),
+  );
+  dom.readSpace.addEventListener(
+    "click",
+    () => void readSet(everyParam(), `parameters 0 to ${PARAM_SPACE_LAST}`),
+  );
+  dom.clearResult.addEventListener("click", clearResult);
+  dom.clearLog.addEventListener("click", clearLog);
   dom.info.addEventListener("click", () => void readInfo());
 }

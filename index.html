@@ -56,17 +56,27 @@
           <select id="param"></select>
           <div class="actions">
             <button id="read" type="button">Read</button>
-            <button id="read-all" type="button">Read all</button>
+            <button id="read-provisioning" type="button">Read provisioning settings</button>
+            <button id="read-space" type="button">Read every parameter</button>
             <button id="info" type="button">Read 0xFF02</button>
           </div>
-          <pre id="result" aria-live="polite"></pre>
         </div>
 
         <!--
-          Outside the block above, which is hidden when the device goes away. The log is most valuable
-          precisely at that moment, so it must survive a disconnect.
+          Both panes sit outside the block above, which is hidden when the device goes away. What they hold
+          is worth keeping after a disconnect — a sweep takes minutes and the device may drop at the end of
+          one — so each is cleared on request and never automatically.
         -->
-        <label for="log">Everything the device has sent</label>
+        <div class="pane-heading">
+          <label for="result">Readings</label>
+          <button id="clear-result" class="clear" type="button">Clear</button>
+        </div>
+        <pre id="result" aria-live="polite"></pre>
+
+        <div class="pane-heading">
+          <label for="log">Everything the device has sent</label>
+          <button id="clear-log" class="clear" type="button">Clear</button>
+        </div>
         <pre id="log">nothing yet</pre>
       </section>
 

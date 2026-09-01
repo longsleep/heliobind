@@ -27,8 +27,11 @@ export const dom = {
   readout: el("readout"),
   param: el<HTMLSelectElement>("param"),
   read: el<HTMLButtonElement>("read"),
-  readAll: el<HTMLButtonElement>("read-all"),
+  readProvisioning: el<HTMLButtonElement>("read-provisioning"),
+  readSpace: el<HTMLButtonElement>("read-space"),
   info: el<HTMLButtonElement>("info"),
+  clearResult: el<HTMLButtonElement>("clear-result"),
+  clearLog: el<HTMLButtonElement>("clear-log"),
   result: el<HTMLPreElement>("result"),
   log: el<HTMLPreElement>("log"),
   build: el("build"),
@@ -40,8 +43,32 @@ export function setStatus(text: string): void {
   dom.deviceStatus.textContent = text;
 }
 
-export function setResult(text: string): void {
-  dom.result.textContent = text;
+/**
+ * Render a parameter value for reading.
+ *
+ * Values arrive as bytes and most are ASCII text, but not all: some carry raw octets, and rendering those
+ * as characters produces mojibake that hides where the text stops and the binary starts. Printable runs are
+ * kept as they are and anything else becomes `\xNN`, which is compact, unambiguous and reversible.
+ *
+ * The parser preserves each byte as one code unit, so nothing has been lost by the time this sees it.
+ */
+export function renderValue(value: string): string {
+  let out = "";
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    out += code >= 0x20 && code <= 0x7e ? character : `\\x${code.toString(16).padStart(2, "0")}`;
+  }
+  return out;
+}
+
+/** Empty the readings. The only thing that does — nothing clears them on the app's own initiative. */
+export function clearResult(): void {
+  dom.result.textContent = "";
+}
+
+/** Empty the log. Same rule: it goes when asked and not before. */
+export function clearLog(): void {
+  dom.log.textContent = "";
 }
 
 /**
@@ -50,6 +77,18 @@ export function setResult(text: string): void {
  * Never cleared, and the element sits outside the block hidden on disconnect — the log is most valuable at
  * exactly the moment the device goes away.
  */
+/**
+ * Add one line to the result area, keeping what is already there.
+ *
+ * A sweep of 146 parameters takes long enough that replacing the result each time would show only the last
+ * one. Answers also arrive out of the order they were asked in, so the reading order is the arrival order
+ * and not the parameter number — sorting as they land would make a slow read look like a stuck one.
+ */
+export function appendResult(text: string): void {
+  dom.result.textContent = dom.result.textContent ? `${dom.result.textContent}\n${text}` : text;
+  dom.result.scrollTop = dom.result.scrollHeight;
+}
+
 export function log(text: string): void {
   const at = new Date().toISOString().slice(11, 23);
   const previous = dom.log.textContent;
