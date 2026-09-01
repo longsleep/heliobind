@@ -14,11 +14,27 @@
 
 import { decryptBody, encryptBody } from "./protocol/crypto.ts";
 import { build, FUNCTION, parse, readConfigBody, writeConfigBody } from "./protocol/frame.ts";
-import { KEY_PARAM } from "./protocol/params.ts";
+import { BIND_KEY, batches, everyParam } from "./protocol/params.ts";
 import { accepted, parseResponse, type Response } from "./protocol/response.ts";
 import type { Connection, Route } from "./transport/ble.ts";
 
 export class DeviceError extends Error {}
+
+/**
+ * One outcome from {@link Device.sweep}.
+ *
+ * Three cases rather than two, because "the device returned nothing for this parameter" and "the request
+ * never got an answer" are different facts and only one of them is a fault.
+ */
+export type Answer =
+  | { readonly kind: "value"; readonly param: number; readonly value: string }
+  | { readonly kind: "silent"; readonly params: readonly number[] }
+  | { readonly kind: "unanswered"; readonly params: readonly number[]; readonly reason: string };
+
+/** What went wrong, in a form fit to show. */
+function reasonFor(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 /** Refused by the device rather than failed in transit: the frame was understood, the key was not. */
 export class AuthenticationError extends DeviceError {
@@ -43,7 +59,7 @@ export class Device {
     const response = await exchange(
       connection,
       FUNCTION.writeConfig,
-      writeConfigBody([{ param: KEY_PARAM, value: key }]),
+      writeConfigBody([{ param: BIND_KEY.number, value: key }]),
     );
     if (!accepted(response)) throw new AuthenticationError(response.status);
     return new Device(connection, response.serial);
@@ -56,6 +72,43 @@ export class Device {
   /** Read one or more configuration parameters. */
   async read(params: readonly number[]): Promise<Response> {
     return exchange(this.connection, FUNCTION.readConfig, readConfigBody(params));
+  }
+
+  /**
+   * Read the whole parameter space, yielding each answer as it arrives.
+   *
+   * An async iterator rather than a promise of everything, because a sweep of 146 parameters takes long
+   * enough that a caller should be able to show progress, stop early, or give up — and because the device
+   * answers some parameters and not others, so there is no complete set to wait for.
+   *
+   * `batch` is how many parameters go in one request. It is a tuning knob and not an interface: the device
+   * may honour it, or answer only the first and leave the rest unanswered, and a caller sees the same
+   * sequence of values either way — only the time differs. One is the count the vendor app always sends and
+   * so the only one certain to work.
+   *
+   * A batch that fails does not end the sweep. Its parameters are reported unanswered and the next batch
+   * goes out, because one refusal should not cost the other 145.
+   */
+  async *sweep(batch = 1, params: readonly number[] = everyParam()): AsyncGenerator<Answer> {
+    for (const group of batches(params, batch)) {
+      let response: Response;
+      try {
+        response = await this.read(group);
+      } catch (error) {
+        yield { kind: "unanswered", params: group, reason: reasonFor(error) };
+        continue;
+      }
+      for (const value of response.values) {
+        yield { kind: "value", param: value.param, value: value.value };
+      }
+      // Asked for and not returned. Expected rather than exceptional — some parameters are simply empty —
+      // so it is reported as an outcome and not as a failure.
+      const answered = new Set(response.values.map((value) => value.param));
+      const silent = group.filter((param) => !answered.has(param));
+      if (silent.length > 0) {
+        yield { kind: "silent", params: silent };
+      }
+    }
   }
 
   /**
