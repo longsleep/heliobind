@@ -34,10 +34,10 @@ export const dom = {
   clearLog: el<HTMLButtonElement>("clear-log"),
   result: el<HTMLPreElement>("result"),
   log: el<HTMLPreElement>("log"),
+  update: el("update"),
+  updateNow: el<HTMLButtonElement>("update-now"),
   build: el("build"),
 } as const;
-
-const NOTHING_LOGGED = "nothing yet";
 
 export function setStatus(text: string): void {
   dom.deviceStatus.textContent = text;
@@ -72,12 +72,6 @@ export function clearLog(): void {
 }
 
 /**
- * Append to the running record, timestamped.
- *
- * Never cleared, and the element sits outside the block hidden on disconnect — the log is most valuable at
- * exactly the moment the device goes away.
- */
-/**
  * Add one line to the result area, keeping what is already there.
  *
  * A sweep of 146 parameters takes long enough that replacing the result each time would show only the last
@@ -89,10 +83,18 @@ export function appendResult(text: string): void {
   dom.result.scrollTop = dom.result.scrollHeight;
 }
 
+/**
+ * Append to the running record, timestamped.
+ *
+ * The element sits outside the block hidden on disconnect — the log is most valuable at exactly the moment
+ * the device goes away — and it is emptied only when asked.
+ */
 export function log(text: string): void {
   const at = new Date().toISOString().slice(11, 23);
+  // Empty is empty. What an empty pane *says* is a presentational matter and lives in the stylesheet, so
+  // nothing here has to know the placeholder's wording or compare against it.
   const previous = dom.log.textContent;
-  dom.log.textContent = previous === NOTHING_LOGGED ? `${at}  ${text}` : `${previous}\n${at}  ${text}`;
+  dom.log.textContent = previous ? `${previous}\n${at}  ${text}` : `${at}  ${text}`;
 }
 
 /** What went wrong, in one line, without assuming an Error was thrown. */

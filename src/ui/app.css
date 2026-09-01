@@ -162,6 +162,96 @@ footer {
 }
 
 /*
+ * The heading row: identity on the left, where the source lives on the right.
+ *
+ * `space-between` rather than a margin, so the link stays pinned to the right edge whatever the name
+ * beside it grows to.
+ */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/*
+ * Quiet until wanted. It is a permanent fixture rather than an action, so it recedes to the muted colour
+ * and takes the accent only on hover or keyboard focus — but the target stays a comfortable size.
+ */
+.source {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  color: var(--muted);
+  border-radius: 6px;
+}
+
+.source:hover,
+.source:focus-visible {
+  color: var(--accent);
+}
+
+/*
+ * The mark and the name, on one line at the top left.
+ *
+ * `align-items: center` against the heading's own line box, and the mark is sized in `em` so it tracks the
+ * heading if that ever changes size. It is decorative — the name beside it carries the meaning — so it is
+ * hidden from assistive technology rather than given a label that would be read out twice.
+ */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.brand-mark {
+  flex: 0 0 auto;
+  width: 1.6em;
+  height: 1.6em;
+  color: var(--accent);
+}
+
+.brand h1 {
+  margin: 0;
+}
+
+/*
+ * What an empty output pane says.
+ *
+ * In the stylesheet rather than in the markup, so that emptiness has one meaning: the code writes text or
+ * it writes nothing, and never has to recognise a placeholder it put there itself.
+ */
+pre:empty::before {
+  content: "nothing yet";
+  color: var(--muted);
+}
+
+/*
+ * The update offer. Sits under the heading and is hidden until a newer version is waiting, so it is the
+ * first thing read when there is one and occupies nothing when there is not.
+ */
+.update {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.5rem 0.6rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.update button {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 0.35rem 0.9rem;
+}
+
+/*
  * A pane's label and the button that empties it, on one line.
  *
  * `align-items: baseline` rather than `center` so the button sits on the label's text line instead of

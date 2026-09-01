@@ -14,6 +14,7 @@ import {
   PARAMS,
   PROVISIONING,
 } from "../protocol/params.ts";
+import { install } from "../pwa.ts";
 import { Connection, choose, isSupported } from "../transport/ble.ts";
 import {
   appendResult,
@@ -152,9 +153,32 @@ async function readInfo(): Promise<void> {
   });
 }
 
+/**
+ * Make the app installable and keep it current.
+ *
+ * Runs whether or not Bluetooth is available, and before the support check returns: a browser that cannot
+ * talk to a device can still hold an installed copy, and an update that fixes the support problem should
+ * still be able to arrive.
+ */
+function offlineAndUpdates(): void {
+  void install({
+    show: () => {
+      dom.update.hidden = false;
+      log("a newer version is ready; press Update to switch to it");
+    },
+    onAccept: (take) => dom.updateNow.addEventListener("click", take),
+  }).then((problem) => {
+    // Deliberately dropped rather than reported. The development server serves no worker, so this is the
+    // ordinary case there; and where it is a real failure the reader can do nothing about it, while the app
+    // itself works exactly as before — only without a cached copy. The log beside it is for device traffic.
+    void problem;
+  });
+}
+
 /** Bootstrap. Called once, from `main.ts`. */
 export function start(): void {
   dom.build.textContent = `build ${BUILD} · read-only`;
+  offlineAndUpdates();
 
   if (!isSupported()) {
     visibility.unsupported();
