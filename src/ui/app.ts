@@ -7,6 +7,11 @@
 
 import { AuthenticationError, Device } from "../device.ts";
 import {
+  configure as configureCipher,
+  isConfigured as isCipherConfigured,
+  unconfigure as unconfigureCipher,
+} from "../protocol/crypto.ts";
+import {
   describe,
   everyParam,
   numbersOf,
@@ -15,6 +20,7 @@ import {
   PROVISIONING,
 } from "../protocol/params.ts";
 import { install } from "../pwa.ts";
+import { forget, load, save } from "../settings.ts";
 import { Connection, choose, isSupported } from "../transport/ble.ts";
 import {
   appendResult,
@@ -37,7 +43,6 @@ import {
  * rather than a secret. The field stays editable because another device may hold something else — whatever
  * parameter 54 contains, which is readable over the network interface as well as this one.
  */
-const COMMON_KEY = "redacted_see_readme_not_shipped_";
 
 /** Set at build time; see the build script. `typeof` on an undeclared name is safe in JavaScript. */
 declare const __BUILD_REF__: string;
@@ -78,7 +83,7 @@ async function connect(): Promise<void> {
     setStatus(error instanceof AuthenticationError ? "key refused" : "not connected");
     appendResult(describeError(error));
     log(describeError(error));
-    dom.connect.disabled = false;
+    refreshConnect();
   }
 }
 
@@ -88,7 +93,21 @@ function onDisconnected(): void {
   log("device disconnected");
   setStatus("disconnected");
   visibility.readout(false);
-  dom.connect.disabled = false;
+  refreshConnect();
+}
+
+/**
+ * Offer to find a device only when there is something to say to one.
+ *
+ * Without all three constants the app cannot get past the handshake, and the failure it would produce —
+ * a refused key, or a frame the device ignores in silence — says nothing about the actual cause. A button
+ * that is not offered is clearer than an error that misdirects.
+ */
+function refreshConnect(): void {
+  const missing = [dom.cipherKey, dom.cipherIv, dom.key].some((input) => input.value.trim() === "");
+  const ready = !missing && isCipherConfigured();
+  dom.connect.disabled = !ready;
+  dom.connect.title = ready ? "" : "Enter the protocol constants first";
 }
 
 /**
@@ -175,6 +194,57 @@ function offlineAndUpdates(): void {
   });
 }
 
+/**
+ * Load the supplied constants, keep them stored as they are edited, and hand the cipher its two.
+ *
+ * Opened automatically when anything is missing, because the app cannot do a single useful thing until all
+ * three are present and a collapsed block gives no hint of that.
+ */
+function wireSecrets(): void {
+  const stored = load();
+  dom.cipherKey.value = stored.cipherKey;
+  dom.cipherIv.value = stored.cipherIv;
+  dom.key.value = stored.bindKey;
+
+  const applyCipher = (): void => {
+    try {
+      configureCipher({ key: dom.cipherKey.value.trim(), iv: dom.cipherIv.value.trim() });
+    } catch {
+      // Half-typed is the normal state of an input being filled in, so this says nothing — but it must
+      // still drop what was configured before. Otherwise editing a good value into a bad one would leave
+      // the old pair in force behind a field that no longer shows it.
+      unconfigureCipher();
+    }
+  };
+
+  const remember = (field: "cipherKey" | "cipherIv" | "bindKey", input: HTMLInputElement): void => {
+    input.addEventListener("input", () => {
+      if (field !== "bindKey") applyCipher();
+      refreshConnect();
+    });
+    input.addEventListener("change", () => save(field, input.value.trim()));
+  };
+  remember("cipherKey", dom.cipherKey);
+  remember("cipherIv", dom.cipherIv);
+  remember("bindKey", dom.key);
+
+  dom.forget.addEventListener("click", (event) => {
+    // It lives inside the <summary>, where any click toggles the disclosure. Clearing the fields should
+    // not also close the block that shows them.
+    event.preventDefault();
+    event.stopPropagation();
+    forget();
+    for (const input of [dom.cipherKey, dom.cipherIv, dom.key]) input.value = "";
+    dom.secrets.open = true;
+    refreshConnect();
+    log("the stored constants were forgotten");
+  });
+
+  applyCipher();
+  refreshConnect();
+  dom.secrets.open = !(stored.cipherKey && stored.cipherIv && stored.bindKey);
+}
+
 /** Bootstrap. Called once, from `main.ts`. */
 export function start(): void {
   dom.build.textContent = `build ${BUILD} · read-only`;
@@ -186,7 +256,7 @@ export function start(): void {
   }
 
   fillParameters(PARAMS);
-  dom.key.value = COMMON_KEY;
+  wireSecrets();
   visibility.ready();
 
   dom.connect.addEventListener("click", () => void connect());

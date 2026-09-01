@@ -18,7 +18,11 @@ function el<T extends HTMLElement>(id: string): T {
 export const dom = {
   unsupported: el("unsupported"),
   app: el("app"),
+  secrets: el<HTMLDetailsElement>("secrets"),
+  cipherKey: el<HTMLInputElement>("cipher-key"),
+  cipherIv: el<HTMLInputElement>("cipher-iv"),
   key: el<HTMLInputElement>("key"),
+  forget: el<HTMLButtonElement>("forget"),
   connect: el<HTMLButtonElement>("connect"),
   device: el("device"),
   deviceName: el("device-name"),

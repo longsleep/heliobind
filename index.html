@@ -101,8 +101,52 @@
           Read-only. This version can find a device and read its settings; it cannot change anything.
         </p>
 
-        <label for="key">Key presented on connecting</label>
-        <input id="key" type="text" autocomplete="off" spellcheck="false" placeholder="key">
+        <!--
+          The three constants this project does not ship. They come from the vendor application; see the
+          README. Kept in one block so it is obvious they belong together, and remembered in the browser so
+          they are typed once.
+        -->
+        <details id="secrets" class="secrets">
+          <summary>
+            <!--
+              The row sits inside the summary rather than being the summary, so the disclosure marker
+              survives: `display: flex` on a summary removes it in every engine. The button's own click
+              handler stops it toggling the block it sits in.
+            -->
+            <span class="pane-heading">
+              <span>Protocol constants</span>
+              <button id="forget" class="clear" type="button">Clear</button>
+            </span>
+          </summary>
+          <p class="note">
+            Not distributed with this app. The cipher key and IV are sixteen characters each; the handshake
+            key is what a device is greeted with. The same values work on any device of this family within
+            range, so treat them as you would a password.
+          </p>
+
+          <label for="cipher-key">Cipher key</label>
+          <input
+            id="cipher-key"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="16"
+            placeholder="16 characters"
+          >
+
+          <label for="cipher-iv">Cipher IV</label>
+          <input
+            id="cipher-iv"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="16"
+            placeholder="16 characters"
+          >
+
+          <label for="key">Key presented on connecting</label>
+          <input id="key" type="text" autocomplete="off" spellcheck="false" placeholder="handshake key">
+        </details>
 
         <div class="actions">
           <button id="connect" type="button">Find a device</button>

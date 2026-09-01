@@ -1,8 +1,13 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
+import { useTestCipher } from "./cipher.fixture.ts";
 import { CryptoError, decryptBody, encryptBody, internals, key } from "./crypto.ts";
 import { type Bytes, fromHex, toHex } from "./frame.ts";
 
-const { BLOCK, IV, rawEncryptBlock } = internals;
+const { BLOCK, iv: ivBytes, rawEncryptBlock } = internals;
+
+beforeAll(useTestCipher);
+
+const IV = ivBytes();
 
 describe("the padding synthesis", () => {
   test("zero-IV CBC over one block is raw block encryption", async () => {

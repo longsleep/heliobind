@@ -1,9 +1,12 @@
 /**
  * AES-128-CBC for the Bluetooth body, in both directions.
  *
- * The key and IV are fixed ASCII strings taken from the vendor app. They are the same on every device, so
- * they authenticate nothing and protect nothing — treat this as obfuscation with a respectable algorithm,
- * not as security. Anyone in Bluetooth range can speak the protocol.
+ * The key and IV are fixed ASCII strings the same on every device, so they authenticate nothing and protect
+ * nothing — treat this as obfuscation with a respectable algorithm, not as security. Anyone in Bluetooth
+ * range who has them can speak the protocol, including to a device that is not theirs.
+ *
+ * **This project does not ship them.** They come from the vendor application and are supplied by whoever
+ * runs this — see {@link configure}. Nothing here works until they are.
  *
  * The awkward part is a padding asymmetry. The vendor encrypts with PKCS5 (identical to PKCS7 at a 16-octet
  * block) and decrypts with *no* padding, trimming the plaintext instead using the length field in the frame
@@ -13,9 +16,15 @@
 
 import type { Bytes } from "./frame.ts";
 
-const KEY_TEXT = "0123456789abcdef";
-const IV_TEXT = "fedcba9876543210";
 const BLOCK = 16;
+
+/** The two constants the cipher needs, each exactly one block of ASCII. */
+export interface Cipher {
+  readonly key: string;
+  readonly iv: string;
+}
+
+let cipher: Cipher | null = null;
 
 function asciiBytes(text: string): Bytes {
   const out = new Uint8Array(text.length);
@@ -23,16 +32,71 @@ function asciiBytes(text: string): Bytes {
   return out;
 }
 
-const IV = asciiBytes(IV_TEXT);
 const ZERO_IV = new Uint8Array(BLOCK);
 
 export class CryptoError extends Error {}
 
 let cached: Promise<CryptoKey> | null = null;
 
-/** The one key, imported once. */
+/**
+ * Supply the cipher constants.
+ *
+ * Both must be exactly one block of ASCII, which is what the protocol uses and also the cheapest way to
+ * catch a mistyped or half-pasted value before it turns into a frame the device silently ignores.
+ *
+ * Calling this again with different constants discards the imported key, so a correction takes effect
+ * without a reload.
+ */
+export function configure(next: Cipher): void {
+  for (const [what, value] of [
+    ["key", next.key],
+    ["IV", next.iv],
+  ] as const) {
+    if (value.length !== BLOCK) {
+      throw new CryptoError(`the cipher ${what} must be ${BLOCK} characters, got ${value.length}`);
+    }
+    // Non-ASCII would encode to more octets than characters, so the block length would be wrong in a way
+    // the length check above cannot see.
+    if (!/^[\x20-\x7e]+$/.test(value)) {
+      throw new CryptoError(`the cipher ${what} must be printable ASCII`);
+    }
+  }
+  cipher = next;
+  cached = null;
+}
+
+/**
+ * Discard the constants.
+ *
+ * Needed because {@link configure} throws before assigning, so an edit that makes a value invalid would
+ * otherwise leave the previous pair in force — and the app would go on encrypting with constants that are
+ * no longer the ones on screen.
+ */
+export function unconfigure(): void {
+  cipher = null;
+  cached = null;
+}
+
+/** Whether the constants have been supplied. */
+export function isConfigured(): boolean {
+  return cipher !== null;
+}
+
+function constants(): Cipher {
+  if (!cipher) {
+    throw new CryptoError("the cipher constants have not been set; see the note in the README");
+  }
+  return cipher;
+}
+
+/** The initialisation vector, as octets. */
+function iv(): Bytes {
+  return asciiBytes(constants().iv);
+}
+
+/** The one key, imported once per set of constants. */
 export function key(): Promise<CryptoKey> {
-  cached ??= crypto.subtle.importKey("raw", asciiBytes(KEY_TEXT), { name: "AES-CBC" }, false, [
+  cached ??= crypto.subtle.importKey("raw", asciiBytes(constants().key), { name: "AES-CBC" }, false, [
     "encrypt",
     "decrypt",
   ]);
@@ -46,7 +110,7 @@ export function key(): Promise<CryptoKey> {
  * special handling.
  */
 export async function encryptBody(plaintext: Bytes): Promise<Bytes> {
-  const out = await crypto.subtle.encrypt({ name: "AES-CBC", iv: IV }, await key(), plaintext);
+  const out = await crypto.subtle.encrypt({ name: "AES-CBC", iv: iv() }, await key(), plaintext);
   return new Uint8Array(out);
 }
 
@@ -83,7 +147,7 @@ export async function decryptBody(ciphertext: Bytes): Promise<Bytes> {
   withPadding.set(ciphertext, 0);
   withPadding.set(synthesised, ciphertext.length);
 
-  const plain = await crypto.subtle.decrypt({ name: "AES-CBC", iv: IV }, k, withPadding);
+  const plain = await crypto.subtle.decrypt({ name: "AES-CBC", iv: iv() }, k, withPadding);
   return new Uint8Array(plain);
 }
 
@@ -99,4 +163,4 @@ async function rawEncryptBlock(k: CryptoKey, block: Bytes): Promise<Bytes> {
 }
 
 /** Exported for the tests, which need to prove the synthesis against a known plaintext. */
-export const internals = { rawEncryptBlock, BLOCK, IV, ZERO_IV };
+export const internals = { rawEncryptBlock, BLOCK, iv, ZERO_IV };

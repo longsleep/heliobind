@@ -26,6 +26,26 @@ the device — a few metres of open air is not enough.
 
 Served over HTTPS, or from `localhost`. Web Bluetooth requires a secure context.
 
+**Three constants, which this project does not distribute.** See below.
+
+## The constants this app does not ship
+
+The Bluetooth interface needs three values that are not in this repository: a cipher key, a cipher IV, and
+the handshake key a device is greeted with. Enter them under **Protocol constants** in the app; they are
+kept in the browser's own storage and typed once. Until all three are present, nothing connects.
+
+They are held back deliberately. The values are the same on every device of this family, the device accepts
+them from anyone in radio range, and nothing on the vendor's side limits what may then be read or written —
+so they open a neighbour's battery exactly as readily as your own.
+
+All three are recoverable from the vendor's Android application by anyone willing to decompile it. That is
+the point: it is a small effort for someone doing protocol work on hardware they own, and one this project
+declines to remove for everyone else.
+
+> Anything you enter is stored in that browser profile and never leaves the device — the app makes no
+> network requests at all, which its content security policy enforces rather than promises. On a shared
+> machine, use **Forget these**.
+
 ## Running it
 
 ```sh

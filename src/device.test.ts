@@ -6,12 +6,15 @@
  * say — which is exactly the part that is uncertain.
  */
 
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { type Answer, Device } from "./device.ts";
+import { useTestCipher } from "./protocol/cipher.fixture.ts";
 import { decryptBody, encryptBody } from "./protocol/crypto.ts";
 import { type Bytes, build, FUNCTION, parse, readU16, SERIAL_PLACEHOLDER } from "./protocol/frame.ts";
 import { PARAM_SPACE_LAST } from "./protocol/params.ts";
 import type { Connection } from "./transport/ble.ts";
+
+beforeAll(useTestCipher);
 
 const SERIAL = "0EXAMPLE00";
 

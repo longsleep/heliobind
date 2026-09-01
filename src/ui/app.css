@@ -162,6 +162,36 @@ footer {
 }
 
 /*
+ * The block holding the constants the app is not shipped with.
+ *
+ * A disclosure rather than a permanent form: once they are entered it is a detail nobody needs to see, and
+ * the app opens it by itself whenever one is missing.
+ */
+.secrets {
+  margin: 1rem 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.secrets summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Inline-flex so the row still counts as the marker's principal box and the triangle stays put. */
+.secrets summary .pane-heading {
+  display: inline-flex;
+  width: calc(100% - 1.5rem);
+  vertical-align: middle;
+  margin: 0;
+}
+
+.secrets label:first-of-type {
+  margin-top: 0.75rem;
+}
+
+/*
  * The heading row: identity on the left, where the source lives on the right.
  *
  * `space-between` rather than a margin, so the link stays pinned to the right edge whatever the name
