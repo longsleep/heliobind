@@ -61,9 +61,17 @@ describe("parseResponse", () => {
     expect(() => parseResponse(fromHex(`${SERIAL} 00 01 00 00 11 00`))).toThrow(/cut short/);
   });
 
-  test("rejects a count that disagrees with the body", () => {
-    expect(() => parseResponse(fromHex(`${SERIAL} 00 02 00 00 11 00 04 68 6f 73 74`))).toThrow(
-      /count says 2/,
+  test("rejects a body carrying more values than the count", () => {
+    expect(() => parseResponse(fromHex(`${SERIAL} 00 01 00 00 11 00 04 68 6f 73 74 00 12 00 01 39`))).toThrow(
+      /count says 1/,
     );
+  });
+
+  test("accepts a body carrying fewer values than the count", () => {
+    // A request may name several parameters and the device answers only the ones it holds. Rejecting that
+    // would discard the values that did come back, which is the opposite of useful.
+    const response = parseResponse(fromHex(`${SERIAL} 00 08 00 00 11 00 04 68 6f 73 74`));
+    expect(response.count).toBe(8);
+    expect(response.values).toEqual([{ param: 17, value: "host" }]);
   });
 });

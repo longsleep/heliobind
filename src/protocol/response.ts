@@ -89,9 +89,13 @@ export function parseResponse(body: Bytes): Response {
     at += 4 + length;
   }
 
-  // Checked only when values are present. An empty body is an acknowledgement, not a short read, and the
-  // count then refers to what was asked rather than what came back.
-  if (values.length > 0 && values.length !== count) {
+  // Fewer values than the count is normal and must not be rejected: a request may name several parameters,
+  // and the device answers the ones it has. Requiring one value per parameter asked for would throw away a
+  // whole reply because one parameter happened to be empty.
+  //
+  // More than the count is different — nothing explains a reply carrying values nobody asked for, so it is
+  // likelier that the body is being misread than that the device is being generous.
+  if (values.length > count) {
     throw new ResponseError(`count says ${count} parameters, the body holds ${values.length}`);
   }
 
