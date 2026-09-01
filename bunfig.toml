@@ -1,0 +1,15 @@
+# Development server settings.
+#
+# `env` is what lets the protocol constants of README "The constants this app does not ship" reach the
+# browser during development. Without it the dev server leaves `process.env.BUN_PUBLIC_HELIOBIND_CIPHER_KEY` in the
+# bundle as literal text, the browser has no environment to resolve it against, and the fields come up
+# empty — while `bun run build`, which sets the same option in scripts/build.ts, fills them in. The two
+# should behave alike.
+#
+# The prefix is the point. Only names beginning `BUN_PUBLIC_HELIOBIND_` are inlined, so nothing else in the
+# environment can reach the browser by accident.
+#
+# Inlining matches literal `process.env.NAME` and nothing else — not `import.meta.env`, and not
+# `const env = process.env; env.NAME`. src/settings.ts is written accordingly.
+[serve.static]
+env = "BUN_PUBLIC_HELIOBIND_*"

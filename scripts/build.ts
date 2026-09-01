@@ -82,6 +82,10 @@ const result = await Bun.build({
   minify: true,
   sourcemap: "none",
   plugins: [securityPolicy],
+  // Inline `BUN_PUBLIC_HELIOBIND_*` into the client bundle. This is how a build can carry the protocol constants of
+  // §"The constants this app does not ship": set them in .env.local and the fields come prefilled. The
+  // prefix is Bun's own opt-in, so nothing else from the environment can reach the browser by accident.
+  env: "BUN_PUBLIC_HELIOBIND_*",
   define: {
     __BUILD_REF__: JSON.stringify(buildRef),
   },

@@ -31,16 +31,43 @@ export interface Secrets {
 }
 
 /**
- * Read what was stored.
+ * Constants a build was given, or empty strings.
+ *
+ * `BUN_PUBLIC_HELIOBIND_*` is inlined at bundle time, so these are literals by the time a browser sees
+ * them — there is no environment to read at runtime. Both paths do it: the build sets `env` in
+ * scripts/build.ts, the dev server through `[serve.static]` in bunfig.toml. Unset, the expression is
+ * undefined and the app asks instead.
+ *
+ * It must stay a literal `process.env.NAME`. Bun substitutes that exact shape and nothing else, so hoisting
+ * `process.env` into a variable first would silently stop the inlining.
+ *
+ * A build made with these set carries them in its JavaScript. That is the point when the copy is for your
+ * own phone, and the reason not to publish such a build.
+ */
+const SHIPPED: Secrets = {
+  cipherKey: process.env.BUN_PUBLIC_HELIOBIND_CIPHER_KEY ?? "",
+  cipherIv: process.env.BUN_PUBLIC_HELIOBIND_CIPHER_IV ?? "",
+  bindKey: process.env.BUN_PUBLIC_HELIOBIND_BIND_KEY ?? "",
+};
+
+/** Whether this build was given the constants. */
+export function shippedWithConstants(): boolean {
+  return Boolean(SHIPPED.cipherKey && SHIPPED.cipherIv && SHIPPED.bindKey);
+}
+
+/**
+ * Read what was stored, falling back to whatever the build carried.
  *
  * A browser can refuse `localStorage` outright — private windows, storage disabled, an embedded webview —
- * and that is a reason to start with empty fields rather than to fail to start.
+ * and that is a reason to fall back rather than to fail to start.
  */
 export function load(): Secrets {
+  // What was typed wins over what the build carried: a stored value is a deliberate act by whoever is
+  // holding the phone, and a build default is a convenience for the common case.
   return {
-    cipherKey: read("cipherKey"),
-    cipherIv: read("cipherIv"),
-    bindKey: read("bindKey"),
+    cipherKey: read("cipherKey") || SHIPPED.cipherKey,
+    cipherIv: read("cipherIv") || SHIPPED.cipherIv,
+    bindKey: read("bindKey") || SHIPPED.bindKey,
   };
 }
 
@@ -57,7 +84,13 @@ export function save(field: Field, value: string): void {
   }
 }
 
-/** Forget all three. Offered because a shared machine should not keep them. */
+/**
+ * Forget all three.
+ *
+ * Only what was typed. A build given the constants still has them compiled in, and clearing the fields
+ * cannot take them out of the JavaScript — which is worth knowing before treating this as a way to hand
+ * the phone to someone.
+ */
 export function forget(): void {
   for (const key of Object.values(STORE)) {
     try {
