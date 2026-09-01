@@ -1,6 +1,6 @@
 {
   "name": "heliobind",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Find, read and provision a Growatt balcony battery over Bluetooth, from a browser",
   "license": "Apache-2.0",
   "author": "Simon Eisenmann",

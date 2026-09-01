@@ -57,6 +57,29 @@ const buildRef = process.env.BUILD_REF?.trim() || "development";
  */
 const inlineConstants = process.env.HELIOBIND_INLINE === "1";
 
+/** The names src/settings.ts reads, and the only ones a build may answer. */
+const CONSTANT_NAMES = [
+  "BUN_PUBLIC_HELIOBIND_CIPHER_KEY",
+  "BUN_PUBLIC_HELIOBIND_CIPHER_IV",
+  "BUN_PUBLIC_HELIOBIND_BIND_KEY",
+] as const;
+
+/**
+ * What each `process.env.NAME` becomes in the bundle.
+ *
+ * Every name is substituted on every build — with the value when one was asked for, with an empty string
+ * otherwise. Naming them explicitly is the point of doing it this way. Bun's `env` prefix option only
+ * substitutes variables that are *set*, so an absent one is left standing as `process.env.NAME`, and a
+ * browser has no `process` to evaluate that against: the module throws while being imported and the page is
+ * blank. Listing the names means the substitution does not depend on the environment having them.
+ */
+const substitutions = Object.fromEntries(
+  CONSTANT_NAMES.map((name) => [
+    `process.env.${name}`,
+    JSON.stringify(inlineConstants ? (process.env[name] ?? "") : ""),
+  ]),
+);
+
 /** The values that must not appear in a build that did not ask for them. */
 const constants = Object.entries(process.env)
   .filter(([name]) => name.startsWith("BUN_PUBLIC_HELIOBIND_"))
@@ -97,16 +120,14 @@ const result = await Bun.build({
   minify: true,
   sourcemap: "none",
   plugins: [securityPolicy],
-  // Inline `BUN_PUBLIC_HELIOBIND_*` into the client bundle. This is how a local build carries the protocol
-  // constants of README §"The constants this app does not ship": set them in .env.local and the fields
-  // come prefilled. The prefix is Bun's own opt-in, so nothing else in the environment can reach the
-  // browser by accident.
-  // Off unless asked for. A build that carries the protocol constants is a convenience for one phone; a
-  // build that carries them by accident is a publication. Inverting the default means the mistake has to
-  // be typed on purpose — `bun run build:local` — rather than being what happens when .env.local exists.
-  env: inlineConstants ? "BUN_PUBLIC_HELIOBIND_*" : "disable",
+  // Nothing from the environment reaches the browser on its own. `substitutions` above is the only route,
+  // and it carries a value only under `bun run build:local` — a build that carries the protocol constants
+  // is a convenience for one phone, and a build that carries them by accident is a publication. Asking for
+  // it has to be typed on purpose rather than being what happens when .env.local exists.
+  env: "disable",
   define: {
     __BUILD_REF__: JSON.stringify(buildRef),
+    ...substitutions,
   },
 });
 
@@ -121,6 +142,21 @@ const built = await readFile(join(OUT, "index.html"), "utf8");
 if (!built.includes("connect-src 'none'")) {
   console.error("the content security policy is not in the built page; refusing to ship it");
   process.exit(1);
+}
+
+/*
+ * No `process` may survive into the browser.
+ *
+ * A page that reads one is not subtly wrong, it is dead: `ReferenceError` while the module is being
+ * imported, before anything renders, with only the console to say so. Every known reader is substituted
+ * above, so anything left is a new one that nobody has arranged for — the case worth failing on, since
+ * neither the type checker nor the tests can see it. Tests run in Bun, where `process` exists.
+ */
+for (const output of result.outputs.filter(({ path }) => path.endsWith(".js"))) {
+  if ((await readFile(output.path, "utf8")).includes("process.env")) {
+    console.error(`${output.path} reads process.env, which does not exist in a browser`);
+    process.exit(1);
+  }
 }
 
 /*

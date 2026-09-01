@@ -45,10 +45,32 @@ export interface Secrets {
  * own phone, and the reason not to publish such a build.
  */
 const SHIPPED: Secrets = {
-  cipherKey: process.env.BUN_PUBLIC_HELIOBIND_CIPHER_KEY ?? "",
-  cipherIv: process.env.BUN_PUBLIC_HELIOBIND_CIPHER_IV ?? "",
-  bindKey: process.env.BUN_PUBLIC_HELIOBIND_BIND_KEY ?? "",
+  cipherKey: fromBuild(() => process.env.BUN_PUBLIC_HELIOBIND_CIPHER_KEY),
+  cipherIv: fromBuild(() => process.env.BUN_PUBLIC_HELIOBIND_CIPHER_IV),
+  bindKey: fromBuild(() => process.env.BUN_PUBLIC_HELIOBIND_BIND_KEY),
 };
+
+/**
+ * One constant a build may have supplied, or an empty string.
+ *
+ * The `try` is load-bearing. Substitution replaces the expression only when the variable is actually set:
+ * unset, `process.env.NAME` survives into the bundle verbatim, and a browser has no `process` to evaluate
+ * it against — so the module throws `ReferenceError` while being imported and the app never starts.
+ *
+ * The build substitutes all three regardless, so this cannot fire there. It fires on the development server,
+ * which has no such backstop and is where a fresh clone with no .env.local lands.
+ *
+ * Passing a function rather than a value is what keeps the read inside the `try`; an argument would be
+ * evaluated at the call site and throw before this ran. The literal `process.env.NAME` is preserved either
+ * way, so substitution still recognises it.
+ */
+function fromBuild(read: () => string | undefined): string {
+  try {
+    return read() ?? "";
+  } catch {
+    return "";
+  }
+}
 
 /** Whether this build was given the constants. */
 export function shippedWithConstants(): boolean {
