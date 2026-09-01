@@ -1,5 +1,5 @@
 /**
- * Wire framing for the NEXA 2000 Bluetooth interface.
+ * Wire framing for the datalogger Bluetooth interface.
  *
  * The frame is the vendor's generation-7 MQTT frame with two changes: the protocol field carries 6 rather
  * than 7, and the body is AES-encrypted rather than XOR-obfuscated. Everything else — the eight-octet

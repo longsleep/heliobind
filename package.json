@@ -1,8 +1,8 @@
 {
-  "name": "nexa-ble-provision",
+  "name": "heliobind",
   "version": "0.0.0",
   "private": true,
-  "description": "Find, read and provision a Growatt NEXA 2000 over Bluetooth, from a browser",
+  "description": "Find, read and provision a Growatt balcony battery over Bluetooth, from a browser",
   "license": "Apache-2.0",
   "type": "module",
   "packageManager": "bun@1.4.0",
