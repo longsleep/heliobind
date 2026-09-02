@@ -160,7 +160,10 @@ type checker, the linter, and two sets of type definitions.
 
 ## What it does
 
-1. Filters for devices advertising the vendor's service, so the browser's chooser shows only these.
+1. Filters the chooser on the vendor's service **and** its manufacturer-data marker, so it offers this
+   family of device and not other hardware. The service alone is Espressif's example UUID, which unrelated
+   ESP32 projects advertise too; the marker is the `G:` that leads the vendor's manufacturer data. Any
+   model of the family is still offered — the device-type code that follows is deliberately not matched.
 2. Connects and subscribes to the command characteristic.
 3. Sends a configuration read and decodes the reply.
 

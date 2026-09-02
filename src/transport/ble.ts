@@ -14,8 +14,32 @@
 
 import { type Bytes, declaredLength, looksLikeFrame } from "../protocol/frame.ts";
 
-/** Vendor service. Filtering on it identifies this family of device rather than one unit. */
+/** Vendor service. Needed to reach the characteristics, and on its own not distinctive — see {@link VENDOR}. */
 export const SERVICE = 0x00ff;
+
+/**
+ * The vendor's manufacturer-data marker, and the reason the chooser can tell this family apart.
+ *
+ * {@link SERVICE} identifies nothing: `0x00FF` is the UUID from Espressif's `gatt_server_service_table`
+ * example, which this firmware is built from, so every unrelated ESP32 project built from the same example
+ * advertises it too. Filtering on the service alone offers those as candidates.
+ *
+ * The manufacturer data is ASCII rather than binary — `G:72#0HVR`, being a device-type code and the first
+ * four characters of the serial. A Bluetooth stack reads the leading two octets as a little-endian company
+ * identifier, so `47 3a` — `G:` — becomes `0x3A47`, a value far outside the assigned range that no real
+ * vendor holds. Phantom or not, it is a stable two-octet marker every device of the family emits, and it
+ * is what makes a filter selective.
+ *
+ * This is the same test the vendor application makes. It walks the scan record itself, keeps the
+ * manufacturer-data field whose ASCII begins `g:` and the complete local name, and joins them into the
+ * serial — so filtering on those two octets is its prefix check expressed as a company identifier.
+ *
+ * What is deliberately *not* matched is the device-type code that follows. The application compares it
+ * against an allowlist — `g:61` NOAH 2000, `g:66` GroPlug, `g:72` NEXA 2000, `g:73` AURA 5000, `g:83`
+ * VETA 2000 — and this app has no reason to be that particular: the configuration space is common to the
+ * family, and an unannounced model should still be offered rather than silently excluded.
+ */
+export const VENDOR = 0x3a47;
 
 /**
  * The UUIDs, spelled out. Web Bluetooth accepts a 16-bit number for the service, but the characteristics
@@ -52,11 +76,18 @@ export function isSupported(): boolean {
  *
  * Must be called from a user gesture; the browser shows its own chooser and the page never sees devices the
  * user did not pick. The chooser displays the advertised name, which is the tail of the serial.
+ *
+ * Both conditions have to hold: the service to reach the characteristics, and the manufacturer-data marker
+ * to make the offer specific. Requiring only the service listed foreign hardware that shares Espressif's
+ * example UUID — see {@link VENDOR}.
+ *
+ * `optionalServices` is still needed after the filter: matching an advertisement grants nothing, and the
+ * service must be declared for `getPrimaryService` to be allowed to reach it.
  */
 export async function choose(): Promise<BluetoothDevice> {
   if (!isSupported()) throw new BleError("this browser does not support Web Bluetooth");
   return navigator.bluetooth.requestDevice({
-    filters: [{ services: [SERVICE] }],
+    filters: [{ services: [SERVICE], manufacturerData: [{ companyIdentifier: VENDOR }] }],
     optionalServices: [SERVICE],
   });
 }
