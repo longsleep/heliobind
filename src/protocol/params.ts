@@ -113,7 +113,12 @@ export const RESTART = readOnly(
   "vendor-app",
   'Write "1" to restart the datalogger. Recoverable: it reboots and reconnects by itself.',
 );
-export const CLEAR_LOG = readOnly(35, "clear_log", "vendor-app", 'Write "1" to clear the datalogger log.');
+export const FACTORY_RESET = readOnly(
+  35,
+  "factory_reset",
+  "vendor-app",
+  'Write "1" to reset the datalogger to factory defaults. Growatt\'s own web interface labels this "clear datalogger log"; the firmware disagrees. The serial, clock and server endpoint survive, the Wi-Fi credentials do not.',
+);
 
 // The static address configuration, which DHCP_DISABLED selects between. Unused while DHCP is on, so on
 // this device all three read factory values and describe no live network.
@@ -215,7 +220,7 @@ export const PARAMS: readonly Param[] = [
   TIMEZONE,
   DATETIME,
   RESTART,
-  CLEAR_LOG,
+  FACTORY_RESET,
   BIND_KEY,
   UNKNOWN_55,
   WIFI_SSID,
