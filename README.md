@@ -167,6 +167,15 @@ type checker, the linter, and two sets of type definitions.
 The reply is shown as raw octets and as text, because how a reply body is laid out is not yet established —
 raw is more honest than a guess at structure.
 
+**Parameters per request** sets how many parameters one request names. Sizes up to 16 answer completely on
+the device this was developed against, so a whole-space read is a handful of requests rather than 146. One
+at a time is what the vendor app sends and is the thing to fall back to on a device that answers a batch
+short — which shows up as a fast read with values missing rather than as an error, so every read reports how
+many requests it sent.
+
+The parameter menu offers the whole space, named where a name is established and `unknown_<n>` where not.
+The unnamed ones are most of it, and reading them is how that changes.
+
 ## Safety
 
 **Nothing here writes to the device.** That is deliberate rather than incidental: the parameters that carry

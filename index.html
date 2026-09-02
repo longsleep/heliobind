@@ -166,6 +166,20 @@
         <div id="readout" hidden>
           <label for="param">Parameter</label>
           <select id="param"></select>
+          <!--
+            Sizes up to 16 answer completely over Bluetooth, and a whole-space read is 146 parameters, so
+            the default is a batch rather than one at a time. One remains available because it is what the
+            vendor app sends, and is the thing to fall back to on a device that answers a batch short.
+            A select rather than free entry: the useful values are few and a typo costs a slow read.
+          -->
+          <label for="batch">Parameters per request</label>
+          <select id="batch">
+            <option value="1">1 — one at a time, as the vendor app asks</option>
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="8" selected>8</option>
+            <option value="16">16 — fastest confirmed</option>
+          </select>
           <div class="actions">
             <button id="read" type="button">Read</button>
             <button id="read-provisioning" type="button">Read provisioning settings</button>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { batches, everyParam, describe as name, PARAM_SPACE_LAST, PARAMS } from "./params.ts";
+import { batches, everyChoice, everyParam, describe as name, PARAM_SPACE_LAST, PARAMS } from "./params.ts";
 
 describe("the parameter space", () => {
   test("runs from zero to the last one inclusive", () => {
@@ -53,6 +53,24 @@ describe("naming a parameter", () => {
     expect(name(0)).toBe("unknown_0");
     expect(name(98)).toBe("unknown_98");
     expect(name(PARAM_SPACE_LAST)).toBe(`unknown_${PARAM_SPACE_LAST}`);
+  });
+});
+
+describe("what the app can offer to read", () => {
+  test("offers the whole space, not only the named parameters", () => {
+    // Offering PARAMS alone left two thirds of the space unreachable, 145 among them — the one register
+    // that answers differently from every other, and so the one most worth being able to ask for.
+    const choices = everyChoice();
+    expect(choices.length).toBe(PARAM_SPACE_LAST + 1);
+    expect(choices.map((choice) => choice.number)).toEqual(everyParam());
+    expect(choices.length).toBeGreaterThan(PARAMS.length);
+  });
+
+  test("every choice carries a name and a summary", () => {
+    for (const choice of everyChoice()) {
+      expect(choice.name).toBe(name(choice.number));
+      expect(choice.summary.length).toBeGreaterThan(0);
+    }
   });
 });
 

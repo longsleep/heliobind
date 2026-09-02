@@ -278,9 +278,9 @@ export function numbersOf(params: readonly Param[]): number[] {
 /**
  * Split parameters into request-sized groups.
  *
- * A read request carries a count and that many numbers, so several parameters fit in one exchange. How many
- * the device will actually answer is not established over Bluetooth — eight works over the network — which
- * is exactly why the size is an argument here and not a constant somewhere in the read path.
+ * A read request carries a count and that many numbers, so several parameters fit in one exchange. Sizes up
+ * to 16 answer completely over Bluetooth and 8 does over the network; where the ceiling actually is remains
+ * unmeasured, which is why the size is an argument here rather than a constant in the read path.
  */
 export function batches(params: readonly number[], size: number): number[][] {
   const step = Math.max(1, Math.floor(size));
@@ -289,6 +289,22 @@ export function batches(params: readonly number[], size: number): number[][] {
     out.push(params.slice(at, at + step));
   }
   return out;
+}
+
+/**
+ * Every parameter in the space as something offerable, named where a name is established.
+ *
+ * {@link PARAMS} is the named subset and is what a menu of *meanings* would list, but it is the wrong list
+ * for choosing what to read: two thirds of the space has no established meaning, and those are the ones
+ * worth asking about. Offering only the named ones makes the unnamed unreachable — including 145, the one
+ * register known to behave differently from the rest.
+ */
+export function everyChoice(): { number: number; name: string; summary: string }[] {
+  return everyParam().map((number) => ({
+    number,
+    name: describe(number),
+    summary: lookup(number)?.summary ?? "No established meaning. Reading it is how that changes.",
+  }));
 }
 
 const BY_NUMBER = new Map(PARAMS.map((param) => [param.number, param]));

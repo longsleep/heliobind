@@ -42,3 +42,29 @@ describe("the page and the code", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+describe("the batch control", () => {
+  /** The `value` of every option inside `<select id="batch">`. */
+  function offered(): string[] {
+    const select = /<select id="batch">([\s\S]*?)<\/select>/.exec(html)?.[1] ?? "";
+    return [...select.matchAll(/value="([^"]*)"/g)].map((match) => match[1] ?? "");
+  }
+
+  test("every offered batch size is a positive integer", () => {
+    const sizes = offered();
+    expect(sizes.length).toBeGreaterThan(1);
+    for (const size of sizes) {
+      expect(Number.isInteger(Number(size))).toBe(true);
+      expect(Number(size)).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  test("the default is a size confirmed to answer completely", () => {
+    // The selected option decides what a reader who touches nothing gets, so it may not drift to whatever
+    // option happens to come first in the markup, and it may not exceed what has been measured.
+    const selected = /<option value="(\d+)" selected>/.exec(html)?.[1];
+    expect(selected).toBeDefined();
+    expect(Number(selected)).toBeLessThanOrEqual(16);
+    expect(offered()).toContain("1");
+  });
+});

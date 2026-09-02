@@ -12,11 +12,12 @@ import {
   unconfigure as unconfigureCipher,
 } from "../protocol/crypto.ts";
 import {
+  batches,
   describe,
+  everyChoice,
   everyParam,
   numbersOf,
   PARAM_SPACE_LAST,
-  PARAMS,
   PROVISIONING,
 } from "../protocol/params.ts";
 import { install } from "../pwa.ts";
@@ -24,6 +25,7 @@ import { forget, load, save } from "../settings.ts";
 import { Connection, choose, isSupported } from "../transport/ble.ts";
 import {
   appendResult,
+  batchSize,
   clearLog,
   clearResult,
   describeError,
@@ -113,10 +115,13 @@ function refreshConnect(): void {
 /**
  * Read a set of parameters, showing each as it arrives.
  *
- * One request per parameter. Not timidity: asking for many in one exchange makes the *reply* large — a
- * single connection-event record is about ninety octets — and a reply that does not fit is lost whole,
- * where a sequence of small ones is merely slow. {@link Device.sweep} takes the batch size, so raising it
- * is a one-word change once a larger count has been shown to work over this transport.
+ * The batch size comes from the control. Sizes up to 16 answer completely over this transport, including
+ * across the connection-event records that make a reply large — about ninety octets each — so the reply
+ * size a batch implies is not the constraint it looked like it might be.
+ *
+ * The run reports how many requests it sent regardless, because the failure mode of asking for too many is
+ * quiet: a device that ignores the count answers part of each batch, which reads as a fast sweep that found
+ * less rather than as an error.
  *
  * Results stream because the device answers slowly and out of order, and because a parameter that answers
  * nothing is an ordinary outcome rather than a fault: the run says so and carries on.
@@ -125,26 +130,37 @@ async function readSet(params: readonly number[], what: string): Promise<void> {
   const session = device;
   if (!session) return;
 
-  appendResult(`reading ${what}…`);
+  const batch = batchSize();
+  const requests = batches(params, batch).length;
+  appendResult(
+    requests === params.length
+      ? `reading ${what}…`
+      : `reading ${what} — ${params.length} parameters in ${requests} requests of up to ${batch}…`,
+  );
   await whileBusy([dom.read, dom.readProvisioning, dom.readSpace], async () => {
     let held = 0;
-    let empty = 0;
+    let blank = 0;
+    let absent = 0;
     let lost = 0;
-    for await (const answer of session.sweep(1, params)) {
+    for await (const answer of session.sweep(batch, params)) {
       switch (answer.kind) {
         case "value":
-          // An empty value is an answer, not a value. Bluetooth returns a TLV for every parameter asked
-          // for, including the ones holding nothing, where the network path returns no TLV at all — so
-          // counting a present-but-empty entry as content would report a fuller device than there is.
+          // An empty value is an answer, not a value: the parameter exists and holds nothing. Counting it
+          // as content would report a fuller device than there is, and counting it as no answer would
+          // hide the difference from a parameter that produced no entry at all — which is the `silent`
+          // case below, and a different fact about the device.
           if (answer.value.length > 0) {
             held += 1;
           } else {
-            empty += 1;
+            blank += 1;
           }
           appendResult(`${describe(answer.param).padEnd(22)} ${renderValue(answer.value)}`);
           break;
         case "silent":
-          empty += answer.params.length;
+          absent += answer.params.length;
+          for (const param of answer.params) {
+            appendResult(`${describe(param).padEnd(22)} (no entry in the reply)`);
+          }
           break;
         case "unanswered":
           lost += answer.params.length;
@@ -152,8 +168,10 @@ async function readSet(params: readonly number[], what: string): Promise<void> {
           break;
       }
     }
-    appendResult(`\n${held} held a value, ${empty} answered nothing, ${lost} went unanswered`);
-    log(`read ${params.length} parameters: ${held} values, ${empty} empty, ${lost} lost`);
+    appendResult(
+      `\n${held} held a value, ${blank} answered empty, ${absent} gave no entry, ${lost} went unanswered`,
+    );
+    log(`read ${params.length} parameters: ${held} values, ${blank} empty, ${absent} absent, ${lost} lost`);
   });
 }
 
@@ -255,7 +273,7 @@ export function start(): void {
     return;
   }
 
-  fillParameters(PARAMS);
+  fillParameters(everyChoice());
   wireSecrets();
   visibility.ready();
 

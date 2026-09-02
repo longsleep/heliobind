@@ -30,6 +30,7 @@ export const dom = {
   deviceSerial: el("device-serial"),
   readout: el("readout"),
   param: el<HTMLSelectElement>("param"),
+  batch: el<HTMLSelectElement>("batch"),
   read: el<HTMLButtonElement>("read"),
   readProvisioning: el<HTMLButtonElement>("read-provisioning"),
   readSpace: el<HTMLButtonElement>("read-space"),
@@ -45,6 +46,17 @@ export const dom = {
 
 export function setStatus(text: string): void {
   dom.deviceStatus.textContent = text;
+}
+
+/**
+ * How many parameters to name in one request.
+ *
+ * Falls back to one rather than trusting the control, because every value above it is a guess about a
+ * transport nobody has measured, and one is the count the vendor app sends.
+ */
+export function batchSize(): number {
+  const chosen = Number(dom.batch.value);
+  return Number.isInteger(chosen) && chosen >= 1 ? chosen : 1;
 }
 
 /**
