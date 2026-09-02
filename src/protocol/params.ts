@@ -115,25 +115,41 @@ export const RESTART = readOnly(
 );
 export const CLEAR_LOG = readOnly(35, "clear_log", "vendor-app", 'Write "1" to clear the datalogger log.');
 
-// Reported, but not describing the live system.
-export const LOCAL_IP = readOnly(
+// The static address configuration, which DHCP_DISABLED selects between. Unused while DHCP is on, so on
+// this device all three read factory values and describe no live network.
+export const STATIC_NETWORK_IP = readOnly(
   14,
-  "local_ip",
-  "device",
-  "Reports 192.168.5.1 and does not describe the live network.",
+  "static_network_ip",
+  "vendor-app",
+  "Address used when DHCP is disabled. Reads 192.168.5.1 while DHCP is on.",
 );
-export const SUBNET_MASK = readOnly(25, "subnet_mask", "device", "Inert default, like local_ip.");
-export const DEFAULT_GATEWAY = readOnly(26, "default_gateway", "device", "Inert default, like local_ip.");
-export const NETWORK_MAC = readOnly(
-  105,
-  "network_mac",
-  "inferred",
-  "A second MAC-shaped field, equal to 16.",
+export const STATIC_NETWORK_MASK = readOnly(
+  25,
+  "static_network_mask",
+  "vendor-app",
+  "Netmask used when DHCP is disabled.",
 );
-export const NETWORK_IP = readOnly(106, "network_ip", "inferred", "A second address field.");
-export const NETWORK_MASK = readOnly(107, "network_mask", "inferred", "A second mask field.");
-export const NETWORK_GATEWAY = readOnly(108, "network_gateway", "inferred", "A second gateway field.");
-export const NETWORK_DNS = readOnly(109, "network_dns", "inferred", "A second resolver field.");
+export const STATIC_NETWORK_GATEWAY = readOnly(
+  26,
+  "static_network_gateway",
+  "vendor-app",
+  "Gateway used when DHCP is disabled.",
+);
+export const DHCP_DISABLED = readOnly(
+  71,
+  "dhcp_disabled",
+  "vendor-app",
+  '"1" disables DHCP and uses 14/25/26; "0" leaves DHCP in charge.',
+);
+
+// Five fields shaped like a MAC, address, mask, gateway and resolver, each equal to the factory default of
+// 16, 14, 25, 26 and 12. Numbered rather than named: the vendor application never reads them, and nothing
+// establishes what they are for.
+export const UNKNOWN_105 = readOnly(105, "unknown_105", "inferred", "A second MAC-shaped field.");
+export const UNKNOWN_106 = readOnly(106, "unknown_106", "inferred", "A second address field.");
+export const UNKNOWN_107 = readOnly(107, "unknown_107", "inferred", "A second mask field.");
+export const UNKNOWN_108 = readOnly(108, "unknown_108", "inferred", "A second gateway field.");
+export const UNKNOWN_109 = readOnly(109, "unknown_109", "inferred", "A second resolver field.");
 
 // Named, but not understood.
 export const UPDATE_URL = readOnly(
@@ -186,7 +202,7 @@ export const PARAMS: readonly Param[] = [
   PROTOCOL_VERSION,
   DNS_IP,
   DEVICE_TYPE,
-  LOCAL_IP,
+  STATIC_NETWORK_IP,
   MAC_ADDRESS,
   SERVER_ADDRESS,
   REMOTE_PORT,
@@ -194,8 +210,8 @@ export const PARAMS: readonly Param[] = [
   MODEL_ID,
   SW_VERSION,
   HW_VERSION,
-  SUBNET_MASK,
-  DEFAULT_GATEWAY,
+  STATIC_NETWORK_MASK,
+  STATIC_NETWORK_GATEWAY,
   TIMEZONE,
   DATETIME,
   RESTART,
@@ -206,13 +222,14 @@ export const PARAMS: readonly Param[] = [
   WIFI_PASSWORD,
   UNKNOWN_60,
   SDK_VERSION,
+  DHCP_DISABLED,
   WIFI_SIGNAL,
   UPDATE_URL,
-  NETWORK_MAC,
-  NETWORK_IP,
-  NETWORK_MASK,
-  NETWORK_GATEWAY,
-  NETWORK_DNS,
+  UNKNOWN_105,
+  UNKNOWN_106,
+  UNKNOWN_107,
+  UNKNOWN_108,
+  UNKNOWN_109,
   LINK_DIAGNOSTICS,
   ...CONNECTION_EVENTS,
   DHCP_LEASE_0,
@@ -242,6 +259,7 @@ export const PROVISIONING: readonly Param[] = [
   WIFI_SSID,
   WIFI_PASSWORD,
   WIFI_SIGNAL,
+  DHCP_DISABLED,
   DHCP_LEASE_0,
   DHCP_LEASE_1,
   DNS_IP,
