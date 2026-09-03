@@ -14,7 +14,7 @@
 
 import { decryptBody, encryptBody } from "./protocol/crypto.ts";
 import { build, FUNCTION, parse, readConfigBody, writeConfigBody } from "./protocol/frame.ts";
-import { BIND_KEY, batches, everyParam } from "./protocol/params.ts";
+import { BLE_HANDSHAKE_KEY, batches, everyParam } from "./protocol/params.ts";
 import { accepted, parseResponse, type Response } from "./protocol/response.ts";
 import type { Connection, Route } from "./transport/ble.ts";
 
@@ -59,7 +59,7 @@ export class Device {
     const response = await exchange(
       connection,
       FUNCTION.writeConfig,
-      writeConfigBody([{ param: BIND_KEY.number, value: key }]),
+      writeConfigBody([{ param: BLE_HANDSHAKE_KEY.number, value: key }]),
     );
     if (!accepted(response)) throw new AuthenticationError(response.status);
     return new Device(connection, response.serial);

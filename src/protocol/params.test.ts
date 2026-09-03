@@ -43,8 +43,16 @@ describe("the parameter space", () => {
 
 describe("naming a parameter", () => {
   test("uses the established name where there is one", () => {
-    expect(name(17)).toBe("server_address");
     expect(name(76)).toBe("wifi_signal");
+    expect(name(4)).toBe("data_interval");
+  });
+
+  test("matches the specification, so a Bluetooth reading is comparable with a network one", () => {
+    // Appendix C is the authority, and the bridge publishes the same strings. A reading taken over
+    // Bluetooth has to be comparable with the same reading taken over the network, unaided.
+    expect(name(17)).toBe("server_address");
+    expect(name(54)).toBe("ble_handshake_key");
+    expect(name(57)).toBe("wifi_password");
   });
 
   test("falls back to the convention the rest of the project uses", () => {

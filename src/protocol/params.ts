@@ -50,9 +50,9 @@ export const MAC_ADDRESS = readOnly(
   "MAC-shaped, but a constant shared across the product family rather than this unit's.",
 );
 export const PASSWORD = readOnly(7, "password", "device", "A six-digit vendor default.");
-export const BIND_KEY = readOnly(
+export const BLE_HANDSHAKE_KEY = readOnly(
   54,
-  "bind_key",
+  "ble_handshake_key",
   "device",
   "The handshake key. Presenting it is authentication rather than configuration, and Device.open is the only thing that writes it.",
 );
@@ -183,6 +183,22 @@ export const UNKNOWN_55 = readOnly(
 );
 export const UNKNOWN_60 = readOnly(60, "unknown_60", "device", 'Reads back "16". Meaning unestablished.');
 
+// The two lists of paired accessories, one per transport. Both read back as the bare prefix "DEV:" with
+// nothing paired. Entries are "&"-separated, each "<mode>-<index>-<address>", and the list is edited by
+// writing a command prefix: "ADD:", "DEL:" or "CRL:". A delete marks an entry rather than removing it.
+export const ACCESSORY_LIST_LAN = readOnly(
+  122,
+  "accessory_list_lan",
+  "device",
+  "Accessories the device reaches over the network, such as an energy meter it polls by address.",
+);
+export const ACCESSORY_LIST_RF = readOnly(
+  102,
+  "accessory_list_rf",
+  "inferred",
+  "Accessories the device reaches over its sub-GHz radio, such as a GroPlug. Same syntax as 122, never exercised.",
+);
+
 /**
  * Parameters 124 to 138: fifteen slots of connection-event records.
  *
@@ -221,7 +237,7 @@ export const PARAMS: readonly Param[] = [
   DATETIME,
   RESTART,
   FACTORY_RESET,
-  BIND_KEY,
+  BLE_HANDSHAKE_KEY,
   UNKNOWN_55,
   WIFI_SSID,
   WIFI_PASSWORD,
@@ -235,6 +251,8 @@ export const PARAMS: readonly Param[] = [
   UNKNOWN_107,
   UNKNOWN_108,
   UNKNOWN_109,
+  ACCESSORY_LIST_RF,
+  ACCESSORY_LIST_LAN,
   LINK_DIAGNOSTICS,
   ...CONNECTION_EVENTS,
   DHCP_LEASE_0,
@@ -260,7 +278,7 @@ export const PROVISIONING: readonly Param[] = [
   SW_VERSION,
   HW_VERSION,
   PROTOCOL_VERSION,
-  BIND_KEY,
+  BLE_HANDSHAKE_KEY,
   WIFI_SSID,
   WIFI_PASSWORD,
   WIFI_SIGNAL,
