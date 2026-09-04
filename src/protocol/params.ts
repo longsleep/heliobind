@@ -24,11 +24,24 @@ export interface Param {
   readonly writable: boolean;
   /** `device` where a read from the hardware confirmed it; otherwise how it was arrived at. */
   readonly confidence: "device" | "vendor-app" | "inferred";
+  /**
+   * What this parameter's values mean, for the few that carry a code rather than a quantity or text.
+   *
+   * Keyed by the value as the device sends it. A value with no entry is shown as it arrived — a code the
+   * device knows and this app does not is still worth reading, so an unlisted value is never an error.
+   */
+  readonly labels?: Readonly<Record<string, string>>;
 }
 
 /** Shorthand for a parameter nothing may write, which is all of them for now. */
-function readOnly(number: number, name: string, confidence: Param["confidence"], summary: string): Param {
-  return { number, name, summary, writable: false, confidence };
+function readOnly(
+  number: number,
+  name: string,
+  confidence: Param["confidence"],
+  summary: string,
+  labels?: Param["labels"],
+): Param {
+  return { number, name, summary, writable: false, confidence, ...(labels && { labels }) };
 }
 
 // What the device is.
@@ -42,7 +55,13 @@ export const MODEL_ID = readOnly(20, "model_id", "device", "Model identifier.");
 export const SW_VERSION = readOnly(21, "sw_version", "device", "Datalogger firmware version.");
 export const HW_VERSION = readOnly(22, "hw_version", "device", "Hardware revision.");
 export const PROTOCOL_VERSION = readOnly(9, "protocol_version", "device", "Wire protocol version.");
-export const DEVICE_TYPE = readOnly(13, "device_type", "inferred", "A numeric type code.");
+export const DEVICE_TYPE = readOnly(
+  13,
+  "device_type",
+  "device",
+  "The product. The same code the device advertises over Bluetooth, ahead of any connection.",
+  { 61: "NOAH 2000", 72: "NEXA 2000", 73: "AURA/NODE 5000", 83: "VETA 2200" },
+);
 export const MAC_ADDRESS = readOnly(
   16,
   "mac_address",
@@ -364,6 +383,17 @@ export function lookup(number: number): Param | undefined {
  */
 export function describe(number: number): string {
   return lookup(number)?.name ?? `unknown_${number}`;
+}
+
+/**
+ * What a value means, for a parameter that carries a code.
+ *
+ * `undefined` for everything else, which is all but a handful: a quantity means itself, and a code this
+ * app has not been taught is shown as the device sent it rather than guessed at. Surrounding space is
+ * ignored, since a value's shape is the device's choice and not promised.
+ */
+export function label(number: number, value: string): string | undefined {
+  return lookup(number)?.labels?.[value.trim()];
 }
 
 /**

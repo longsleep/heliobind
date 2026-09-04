@@ -32,7 +32,7 @@ import {
   dom,
   fillParameters,
   log,
-  renderValue,
+  renderReading,
   setStatus,
   visibility,
   whileBusy,
@@ -154,7 +154,7 @@ async function readSet(params: readonly number[], what: string): Promise<void> {
           } else {
             blank += 1;
           }
-          appendResult(`${describe(answer.param).padEnd(22)} ${renderValue(answer.value)}`);
+          appendResult(`${describe(answer.param).padEnd(22)} ${renderReading(answer.param, answer.value)}`);
           break;
         case "silent":
           absent += answer.params.length;

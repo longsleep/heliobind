@@ -179,6 +179,10 @@ many requests it sent.
 The parameter menu offers the whole space, named where a name is established and `unknown_<n>` where not.
 The unnamed ones are most of it, and reading them is how that changes.
 
+A parameter that carries a code is shown as the value with its meaning after it — `72 (NEXA 2000)` for the
+device type — so a reading stays comparable with the same reading taken any other way. A code with no
+established meaning is shown as it arrived.
+
 ## Safety
 
 **Nothing here writes to the device.** That is deliberate rather than incidental: the parameters that carry

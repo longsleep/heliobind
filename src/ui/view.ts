@@ -5,7 +5,7 @@
  * `app.ts` is left with nothing but the sequence of events — which is the part worth reading.
  */
 
-import { describe } from "../protocol/params.ts";
+import { describe, label } from "../protocol/params.ts";
 import { accepted, type Response } from "../protocol/response.ts";
 
 function el<T extends HTMLElement>(id: string): T {
@@ -77,6 +77,19 @@ export function renderValue(value: string): string {
   return out;
 }
 
+/**
+ * Render a reading, naming the value where the parameter carries a code.
+ *
+ * The value the device holds is what is reported — `72 (NEXA 2000)` — and the name follows it in
+ * parentheses as a gloss. That order is deliberate: the code is what the specification tabulates and what
+ * a reading taken over another transport shows, so it is the reading, and the name is help with it.
+ */
+export function renderReading(param: number, value: string): string {
+  const rendered = renderValue(value);
+  const named = label(param, value);
+  return named ? `${rendered} (${named})` : rendered;
+}
+
 /** Empty the readings. The only thing that does — nothing clears them on the app's own initiative. */
 export function clearResult(): void {
   dom.result.textContent = "";
@@ -124,7 +137,10 @@ export function renderResponse(response: Response): string {
     return accepted(response) ? "accepted, no values returned" : `refused, status ${response.status}`;
   }
   return response.values
-    .map(({ param, value }) => `${String(param).padStart(3)}  ${describe(param).padEnd(16)}  ${value}`)
+    .map(
+      ({ param, value }) =>
+        `${String(param).padStart(3)}  ${describe(param).padEnd(16)}  ${renderReading(param, value)}`,
+    )
     .join("\n");
 }
 

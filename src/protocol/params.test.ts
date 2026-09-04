@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { batches, everyChoice, everyParam, describe as name, PARAM_SPACE_LAST, PARAMS } from "./params.ts";
+import {
+  batches,
+  everyChoice,
+  everyParam,
+  label,
+  describe as name,
+  PARAM_SPACE_LAST,
+  PARAMS,
+} from "./params.ts";
 
 describe("the parameter space", () => {
   test("runs from zero to the last one inclusive", () => {
@@ -61,6 +69,32 @@ describe("naming a parameter", () => {
     expect(name(0)).toBe("unknown_0");
     expect(name(98)).toBe("unknown_98");
     expect(name(PARAM_SPACE_LAST)).toBe(`unknown_${PARAM_SPACE_LAST}`);
+  });
+});
+
+describe("naming a value", () => {
+  test("names the product a device type code stands for", () => {
+    // 72 is the code the reference device holds, and the one its Bluetooth advertisement carries.
+    expect(label(13, "72")).toBe("NEXA 2000");
+    expect(label(13, "61")).toBe("NOAH 2000");
+    expect(label(13, "73")).toBe("AURA/NODE 5000");
+    expect(label(13, "83")).toBe("VETA 2200");
+  });
+
+  test("ignores space around a value, whose shape the device does not promise", () => {
+    expect(label(13, " 72 ")).toBe("NEXA 2000");
+  });
+
+  test("leaves a code it has not been taught unnamed rather than guessing", () => {
+    // Shown as the device sent it. A product this build predates is still worth reading.
+    expect(label(13, "99")).toBeUndefined();
+    expect(label(13, "")).toBeUndefined();
+  });
+
+  test("has nothing to say about a parameter that carries a quantity or text", () => {
+    expect(label(76, "-62")).toBeUndefined();
+    expect(label(20, "GTSW0000")).toBeUndefined();
+    expect(label(0, "72")).toBeUndefined();
   });
 });
 
