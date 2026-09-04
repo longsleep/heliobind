@@ -35,9 +35,12 @@ export const SERVICE = 0x00ff;
  * serial — so filtering on those two octets is its prefix check expressed as a company identifier.
  *
  * What is deliberately *not* matched is the device-type code that follows. The application compares it
- * against an allowlist — `g:61` NOAH 2000, `g:66` GroPlug, `g:72` NEXA 2000, `g:73` AURA 5000, `g:83`
- * VETA 2000 — and this app has no reason to be that particular: the configuration space is common to the
- * family, and an unannounced model should still be offered rather than silently excluded.
+ * against an allowlist, and this app has no reason to be that particular: the configuration space is
+ * common to the family, and an unannounced model should still be offered rather than silently excluded.
+ * The codes of this family are `g:61` NOAH 2000, `g:72` NEXA 2000, `g:73` AURA/NODE 5000 and `g:83`
+ * VETA 2200. The vendor's list is wider, and reaches hardware these parameters do not describe.
+ *
+ * The same code is readable once connected, as parameter 13 `device_type`.
  */
 export const VENDOR = 0x3a47;
 
