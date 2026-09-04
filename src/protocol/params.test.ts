@@ -1,12 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import {
   batches,
+  DEVICE_TYPE,
   everyChoice,
   everyParam,
+  HW_VERSION,
   label,
   describe as name,
+  numbersOf,
   PARAM_SPACE_LAST,
   PARAMS,
+  PROTOCOL_VERSION,
+  PROVISIONING,
+  SDK_VERSION,
+  SW_VERSION,
 } from "./params.ts";
 
 describe("the parameter space", () => {
@@ -112,6 +119,16 @@ describe("what the app can offer to read", () => {
     for (const choice of everyChoice()) {
       expect(choice.name).toBe(name(choice.number));
       expect(choice.summary.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("the provisioning read says what the device is and what it runs", () => {
+    // Which product, and every version the configuration space carries — the questions a support thread
+    // opens with, and the reason not to have to follow a provisioning read with a second one.
+    const numbers = numbersOf(PROVISIONING);
+    expect(numbers).toContain(DEVICE_TYPE.number);
+    for (const version of [SW_VERSION, HW_VERSION, SDK_VERSION, PROTOCOL_VERSION]) {
+      expect(numbers).toContain(version.number);
     }
   });
 });

@@ -287,15 +287,24 @@ export const PARAMS: readonly Param[] = [
  * device is, where it sits on the network it joined, which server it reports to, or whether the radio link
  * is good enough where it was installed.
  *
+ * Every version the configuration space carries is here — the datalogger's firmware, the hardware
+ * revision, the SDK the build was made with, and the wire protocol — since "which versions is it running"
+ * is the question a support thread opens with. The vendor's six-field release string is **not** among
+ * them: four of its fields are component versions held in input registers, an address space this transport
+ * has no proven read for, so the firmware version reported here is the datalogger's own field of that
+ * string rather than the whole of it.
+ *
  * Deliberately not everything with a name. The ring buffer, the duplicate network fields and the assembled
  * blob are worth reading when investigating the protocol and are noise when provisioning; they stay
  * available through the full read.
  */
 export const PROVISIONING: readonly Param[] = [
   SERIAL_NUMBER,
+  DEVICE_TYPE,
   MODEL_ID,
   SW_VERSION,
   HW_VERSION,
+  SDK_VERSION,
   PROTOCOL_VERSION,
   BLE_HANDSHAKE_KEY,
   WIFI_SSID,
