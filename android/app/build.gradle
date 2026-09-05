@@ -19,10 +19,60 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    /*
+     * Signing.
+     *
+     * `test.keystore` is generated once per machine and is **not** committed. Its purpose is a stable
+     * identity rather than secrecy: Android refuses to update an app whose signature changed, so without a
+     * fixed key every build has to be uninstalled before the next one can be installed. Debug builds use it
+     * when it is there and fall back to Gradle's own throwaway key when it is not.
+     *
+     *     podman run --rm -v "$PWD":/src -w /src heliobind-android keytool -genkeypair \
+     *       -keystore android/test.keystore -storepass heliobind -keypass heliobind \
+     *       -alias heliobind-test -keyalg RSA -keysize 2048 -validity 10000 \
+     *       -dname "CN=Heliobind Test Key (not for distribution), O=Heliobind, C=DE"
+     *
+     * A release key arrives through the environment and never through this file. With HELIOBIND_KEYSTORE
+     * set, the release build is signed with it. Without, it falls back to the test key so a non-debuggable
+     * APK can still be built and installed — and such a build must never be distributed, because a key
+     * anybody can regenerate from the line above authenticates nobody.
+     */
+    def testKeystore = file('../test.keystore')
+    def releaseKeystore = System.getenv('HELIOBIND_KEYSTORE')
+
+    signingConfigs {
+        if (testKeystore.exists()) {
+            test {
+                storeFile testKeystore
+                storePassword System.getenv('HELIOBIND_TEST_KEYSTORE_PASSWORD') ?: 'heliobind'
+                keyAlias System.getenv('HELIOBIND_TEST_KEY_ALIAS') ?: 'heliobind-test'
+                keyPassword System.getenv('HELIOBIND_TEST_KEY_PASSWORD') ?: 'heliobind'
+            }
+        }
+        if (releaseKeystore) {
+            release {
+                storeFile file(releaseKeystore)
+                storePassword System.getenv('HELIOBIND_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('HELIOBIND_KEY_ALIAS')
+                keyPassword System.getenv('HELIOBIND_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (testKeystore.exists()) {
+                signingConfig signingConfigs.test
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (releaseKeystore) {
+                signingConfig signingConfigs.release
+            } else if (testKeystore.exists()) {
+                signingConfig signingConfigs.test
+            }
         }
     }
 }

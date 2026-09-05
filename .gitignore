@@ -34,3 +34,6 @@
 
 # The Android SDK and Gradle caches, when they are kept in the repo rather than in a home directory.
 .android/
+
+# Local signing key for test builds. Generated per machine, never committed.
+android/test.keystore
