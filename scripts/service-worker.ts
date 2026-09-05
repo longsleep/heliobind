@@ -66,17 +66,15 @@ self.addEventListener("fetch", (event) => {
       const hit = await cache.match(request);
       if (hit) return hit;
 
-      // Not precached — an icon a manifest asked for late, say. Fetch it and keep it, but never fail the
-      // request because the network is down.
-      try {
-        const response = await fetch(request);
-        if (response.ok) await cache.put(request, response.clone());
-        return response;
-      } catch (error) {
-        const fallback = await cache.match("./");
-        if (fallback) return fallback;
-        throw error;
-      }
+      // Not precached — an icon a manifest asked for late, say. Fetch it and keep it.
+      //
+      // A failure here is allowed to be a failure. This used to answer with the app shell instead, which
+      // meant an image request could be satisfied with HTML: the browser reports that as "icon failed to
+      // load" against a URL that is perfectly good, and the real cause — that the fetch never happened —
+      // is hidden. Only a navigation may be answered with the shell, and that is handled above.
+      const response = await fetch(request);
+      if (response.ok) await cache.put(request, response.clone());
+      return response;
     })(),
   );
 });
