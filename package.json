@@ -52,6 +52,10 @@
   "dependencies": {},
   "devDependencies": {
     "@biomejs/biome": "2.5.10",
+    "@capacitor-community/bluetooth-le": "^8.3.0",
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
     "@types/bun": "1.4.0",
     "@types/web-bluetooth": "0.0.21",
     "typescript": "7.0.2"

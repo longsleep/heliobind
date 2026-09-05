@@ -3,7 +3,7 @@
 
   // Honour .gitignore, so generated output is never linted or reformatted.
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "includes": ["src/**", "scripts/**", "*.json", "*.jsonc", "*.html"] },
+  "files": { "includes": ["src/**", "scripts/**", "*.json", "*.jsonc", "*.html", "*.ts"] },
 
   "formatter": {
     "enabled": true,

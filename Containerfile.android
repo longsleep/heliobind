@@ -1,0 +1,67 @@
+# The Android build environment, so the SDK never touches the machine.
+#
+# The SDK is not a system install — it is a directory and a licence acceptance — so the only reason to put
+# it in an image is to keep both out of a home directory and to pin what the build compiles against. What
+# is pinned here is what the CI runner happens to carry, which is the point: a local APK and one built by
+# the workflow should differ in nothing but the signing key.
+#
+# The web build stays on the host. This image holds no bun and no node: `dist/` is built and synced into
+# `android/` outside, and only Gradle runs in here.
+#
+#     podman build -f Containerfile.android -t heliobind-android .
+#
+# Once, to get a signing key. It is not committed and secures nothing — what it buys is a *stable*
+# signature, because Android refuses to update an app whose signing key changed and every build would
+# otherwise need an uninstall first:
+#
+#     podman run --rm -v "$PWD":/src -w /src heliobind-android keytool -genkeypair \
+#       -keystore android/test.keystore -storepass heliobind -keypass heliobind \
+#       -alias heliobind-test -keyalg RSA -keysize 2048 -validity 10000 \
+#       -dname "CN=Heliobind Test Key (not for distribution), O=Heliobind, C=DE"
+#
+# Then, for each build:
+#
+#     bun run build && bunx cap sync android
+#     podman run --rm \
+#       -v "$PWD":/src \
+#       -w /src/android \
+#       -e GRADLE_USER_HOME=/src/.android/gradle \
+#       heliobind-android ./gradlew --no-daemon assembleRelease
+#
+# `assembleRelease`, not `assembleDebug`: a debug build is debuggable, and this project ships and tests
+# only packages that are not. The release falls back to the test key when no HELIOBIND_KEYSTORE is set.
+#
+# Rootless podman maps the container's root to the invoking user, so the APK comes out owned by you.
+# `GRADLE_USER_HOME` points inside the repo so the Gradle distribution and its caches survive between runs
+# and disappear with `rm -rf .android`, rather than accumulating in ~/.gradle.
+#
+# The APK lands in android/app/build/outputs/apk/release/app-release.apk.
+
+FROM docker.io/library/eclipse-temurin:21-jdk-noble
+
+# The command-line tools zip is versioned by build number rather than by a stable name, and sdkmanager
+# updates itself in place, so this only has to be new enough to run.
+ARG CMDLINE_TOOLS=commandlinetools-linux-9862592_latest.zip
+ARG PLATFORM=android-36
+ARG BUILD_TOOLS=36.0.0
+
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH="/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:${PATH}"
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl unzip; \
+    rm -rf /var/lib/apt/lists/*; \
+    mkdir -p "${ANDROID_HOME}/cmdline-tools"; \
+    curl -fsSLo /tmp/tools.zip "https://dl.google.com/android/repository/${CMDLINE_TOOLS}"; \
+    unzip -q /tmp/tools.zip -d "${ANDROID_HOME}/cmdline-tools"; \
+    mv "${ANDROID_HOME}/cmdline-tools/cmdline-tools" "${ANDROID_HOME}/cmdline-tools/latest"; \
+    rm /tmp/tools.zip; \
+    yes | sdkmanager --licenses > /dev/null; \
+    sdkmanager --install "platform-tools" "platforms;${PLATFORM}" "build-tools;${BUILD_TOOLS}" > /dev/null; \
+    chmod -R a+rX "${ANDROID_HOME}"
+
+# Gradle needs somewhere to write that is not the SDK. Both are overridden at run time by the bind mount
+# above; this is the fallback that keeps a bare `podman run` from failing on a read-only home.
+ENV HOME=/tmp
+WORKDIR /src

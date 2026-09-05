@@ -1,0 +1,62 @@
+# Build the Android package.
+#
+# The app is the same `dist/` that GitHub Pages serves, wrapped by Capacitor: the web build runs once and
+# both consume its output, so the APK cannot drift from the page.
+#
+# Debug only for now, and unsigned. A release build needs a keystore, and a keystore is a credential that
+# belongs in a job which runs no project code — that split is worth setting up deliberately rather than as
+# a footnote to getting the thing to compile at all. Actions are pinned by commit, as in pages.yml: a tag
+# is mutable and moving one is the cheapest way to compromise a workflow.
+
+name: android
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.4.0
+      # Capacitor 8 wants a JDK 21. The runner has one, but not necessarily as the default, and a build
+      # that picks up whatever JAVA_HOME happens to hold is a build that breaks when the image changes.
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      # The same command Pages runs. Without BUILD_REF the page stamps itself "development", which is
+      # accurate for an APK built off a branch.
+      - name: Build the web app
+        env:
+          BUILD_REF: ${{ github.ref_name }} (${{ github.sha }})
+        run: bun run build
+
+      # Copies dist/ into the Android project and refreshes its generated config. Everything it writes is
+      # ignored by git, which is why it has to run here rather than being committed.
+      - name: Sync the Android project
+        run: bunx cap sync android
+
+      # No SDK to install: the runner image carries one at /usr/local/lib/android/sdk with ANDROID_HOME
+      # set, and it holds platform android-36 and build-tools 36.0.0, which is what this project asks for.
+      # Pinned to 24.04 rather than ubuntu-latest so that stays a fact rather than a hope.
+      - name: Assemble
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: heliobind-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Heliobind</string>
+    <string name="title_activity_main">Heliobind</string>
+    <string name="package_name">org.longsleep.heliobind</string>
+    <string name="custom_url_scheme">org.longsleep.heliobind</string>
+</resources>

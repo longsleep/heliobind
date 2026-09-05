@@ -31,3 +31,6 @@
 *.swp
 *~
 .DS_Store
+
+# The Android SDK and Gradle caches, when they are kept in the repo rather than in a home directory.
+.android/
