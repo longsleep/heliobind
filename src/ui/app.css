@@ -231,11 +231,17 @@ footer {
  * The heading row: identity on the left, where the source lives on the right.
  *
  * `space-between` rather than a margin, so the link stays pinned to the right edge whatever the name
- * beside it grows to.
+ * beside it grows to. `flex-start` because the left side is two lines tall and the row's furniture belongs
+ * beside the first of them — centring it would leave both icons floating against the subline.
+ *
+ * `--heading-line` is the heading's line box: its font size times the inherited line height. Both icons
+ * centre on that rather than on the block, so they sit level with the name however long the subline is.
+ * It lives here because two rules need it and neither owns it; it follows the `h1` font size above.
  */
 .topbar {
+  --heading-line: calc(1.35rem * 1.5);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
 }
@@ -253,6 +259,12 @@ footer {
   flex: 0 0 auto;
   color: var(--muted);
   border-radius: 6px;
+  /*
+   * The box is a comfortable target and therefore taller than the line it sits opposite, so half the
+   * excess comes off the top to leave the icon centred on the heading. What hangs below reaches into the
+   * space beside the subline, where there is nothing to collide with.
+   */
+  margin-top: calc((var(--heading-line) - 2.5rem) / 2);
 }
 
 .source:hover,
@@ -261,15 +273,16 @@ footer {
 }
 
 /*
- * The mark and the name, on one line at the top left.
+ * The mark, the name and the subline, at the top left.
  *
- * `align-items: center` against the heading's own line box, and the mark is sized in `em` so it tracks the
- * heading if that ever changes size. It is decorative — the name beside it carries the meaning — so it is
- * hidden from assistive technology rather than given a label that would be read out twice.
+ * `flex-start` keeps the mark level with the name rather than with the middle of the name and the subline
+ * together, and the mark is then centred on the heading's line box, which is taller than the mark itself.
+ * It is decorative — the name beside it carries the meaning — so it is hidden from assistive technology
+ * rather than given a label that would be read out twice.
  */
 .brand {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.6rem;
 }
 
@@ -277,11 +290,29 @@ footer {
   flex: 0 0 auto;
   width: 1.6em;
   height: 1.6em;
+  margin-top: calc((var(--heading-line) - 1.6em) / 2);
   color: var(--accent);
 }
 
 .brand h1 {
   margin: 0;
+}
+
+/*
+ * The name and what the app is for, stacked as one block so the mark sits beside both rather than beside
+ * the heading alone. The subline is muted and small because it answers a question asked once — which
+ * hardware this is for — and then stops being worth reading.
+ */
+.titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 /*
