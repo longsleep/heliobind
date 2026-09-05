@@ -11,7 +11,7 @@ import { type Answer, Device } from "./device.ts";
 import { useTestCipher } from "./protocol/cipher.fixture.ts";
 import { decryptBody, encryptBody } from "./protocol/crypto.ts";
 import { type Bytes, build, FUNCTION, parse, readU16, SERIAL_PLACEHOLDER } from "./protocol/frame.ts";
-import { PARAM_SPACE_LAST } from "./protocol/params.ts";
+import { ACCESSORY_LIST_LAN, FACTORY_RESET, PARAM_SPACE_LAST, WIFI_SSID } from "./protocol/params.ts";
 import type { Connection } from "./transport/ble.ts";
 
 beforeAll(useTestCipher);
@@ -173,5 +173,87 @@ describe("sweeping the parameter space", () => {
     expect(unanswered[0]?.params).toEqual([0]);
     // The failure did not cost the rest of the space.
     expect(answers).toContainEqual({ kind: "value", param: 145, value: "last" });
+  });
+});
+
+describe("writing a setting", () => {
+  /** Recover the TLVs from a write frame the app built, which is what the device would act on. */
+  async function writtenEntries(frame: Bytes): Promise<{ param: number; value: string }[]> {
+    const parsed = parse(frame);
+    const plain = (await decryptBody(parsed.body)).subarray(0, parsed.plaintextLen);
+    const count = readU16(plain, SERIAL_PLACEHOLDER.length);
+    const entries: { param: number; value: string }[] = [];
+    let at = SERIAL_PLACEHOLDER.length + 4;
+    for (let index = 0; index < count; index += 1) {
+      const param = readU16(plain, at);
+      const length = readU16(plain, at + 2);
+      entries.push({
+        param,
+        value: new TextDecoder().decode(plain.subarray(at + 4, at + 4 + length)),
+      });
+      at += 4 + length;
+    }
+    return entries;
+  }
+
+  test("sends the allowlisted parameter and its value", async () => {
+    const written: { param: number; value: string }[][] = [];
+    const connection = {
+      connected: true,
+      async request(frame: Bytes): Promise<Bytes> {
+        const parsed = parse(frame);
+        if (parsed.function === FUNCTION.writeConfig) {
+          written.push(await writtenEntries(frame));
+        }
+        return reply(responseBody([], 1));
+      },
+    } as unknown as Connection;
+
+    const device = await Device.open(connection, "key");
+    const answer = await device.write([{ param: ACCESSORY_LIST_LAN.number, value: "CRL:" }]);
+
+    expect(answer.status).toBe(0);
+    // The first write is the handshake; the second is ours.
+    expect(written.at(-1)).toEqual([{ param: ACCESSORY_LIST_LAN.number, value: "CRL:" }]);
+  });
+
+  test("refuses a parameter that is not on the allowlist, before anything is sent", async () => {
+    // The factory reset stands for the whole excluded space, and it is the exclusion worth defending: it
+    // clears the Wi-Fi credentials, so unlike a bad endpoint or a bad network it cannot be undone from
+    // here — recovery is somebody standing at the device.
+    let sent = 0;
+    const connection = {
+      connected: true,
+      async request(): Promise<Bytes> {
+        sent += 1;
+        return reply(responseBody([], 1));
+      },
+    } as unknown as Connection;
+
+    const device = await Device.open(connection, "key");
+    const before = sent;
+    expect(device.write([{ param: FACTORY_RESET.number, value: "1" }])).rejects.toThrow(
+      /does not write factory_reset/,
+    );
+    expect(sent).toBe(before);
+  });
+
+  test("refuses the whole write if any one parameter is not writable", async () => {
+    const connection = {
+      connected: true,
+      async request(): Promise<Bytes> {
+        return reply(responseBody([], 1));
+      },
+    } as unknown as Connection;
+
+    const device = await Device.open(connection, "key");
+    // One writable parameter and one that is not: the whole frame has to go, because a partly applied
+    // group is the state these groups exist to make impossible.
+    expect(
+      device.write([
+        { param: WIFI_SSID.number, value: "somewhere" },
+        { param: FACTORY_RESET.number, value: "1" },
+      ]),
+    ).rejects.toThrow(/factory_reset/);
   });
 });

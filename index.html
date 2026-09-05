@@ -100,7 +100,8 @@
 
       <section id="app" hidden>
         <p class="note">
-          Read-only. This version can find a device and read its settings; it cannot change anything.
+          Everything here happens over Bluetooth, standing next to the device — no vendor app and no account.
+          Join it to a Wi-Fi network, point it at a server of your choosing, and read any setting it has.
         </p>
 
         <!--
@@ -186,6 +187,44 @@
             <button id="read-space" type="button">Read every parameter</button>
             <button id="info" type="button">Read 0xFF02</button>
           </div>
+
+          <!--
+            Writing is behind a fold, and offers only what the app is allowed to write. The device has no
+            undo, so the affordance is deliberately not as easy to reach as a read.
+          -->
+          <details id="writer" class="writer">
+            <summary>Change a setting</summary>
+            <p class="caution">
+              The device accepts a value that makes it unreachable as readily as any other, and has no undo.
+              Only settings this app knows to be recoverable are offered.
+            </p>
+            <label for="write-param">Setting</label>
+            <select id="write-param"></select>
+            <label for="write-value">Value</label>
+            <input id="write-value" type="text" autocomplete="off" spellcheck="false" placeholder="CRL:">
+            <div class="actions">
+              <button id="write" type="button">Write, then read it back</button>
+            </div>
+          </details>
+
+          <!--
+            The network configuration, one fieldset per frame the device expects. Each group is read before
+            it can be written, so a write can send only what differs — which is what the vendor's own client
+            does, and what keeps a frame from re-asserting values nobody touched.
+          -->
+          <details id="configure" class="writer">
+            <summary>Network configuration</summary>
+            <p class="caution">
+              These are the settings that decide whether the device can be reached at all. Bluetooth is the
+              way back from all of them, which is why they are here rather than nowhere — but the way back
+              means standing next to the device.
+            </p>
+            <div id="groups"></div>
+            <div class="actions">
+              <button id="restart" type="button">Restart the datalogger</button>
+              <button id="link-status" type="button">Check both links</button>
+            </div>
+          </details>
         </div>
 
         <!--

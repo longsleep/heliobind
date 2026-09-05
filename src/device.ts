@@ -13,8 +13,8 @@
  */
 
 import { decryptBody, encryptBody } from "./protocol/crypto.ts";
-import { build, FUNCTION, parse, readConfigBody, writeConfigBody } from "./protocol/frame.ts";
-import { BLE_HANDSHAKE_KEY, batches, everyParam } from "./protocol/params.ts";
+import { build, FUNCTION, parse, readConfigBody, type Tlv, writeConfigBody } from "./protocol/frame.ts";
+import { BLE_HANDSHAKE_KEY, batches, describe, everyParam, isWritable } from "./protocol/params.ts";
 import { accepted, parseResponse, type Response } from "./protocol/response.ts";
 import type { Connection, Route } from "./transport/ble.ts";
 
@@ -72,6 +72,29 @@ export class Device {
   /** Read one or more configuration parameters. */
   async read(params: readonly number[]): Promise<Response> {
     return exchange(this.connection, FUNCTION.readConfig, readConfigBody(params));
+  }
+
+  /**
+   * Write one or more configuration parameters.
+   *
+   * Refused unless every parameter is on the allowlist in `params.ts`, and refused *here* rather than by
+   * the device: this transport reaches the registers that decide which network the device joins and which
+   * server it dials, and the device will accept a value that makes it unreachable as readily as any other.
+   * The check is before a frame is built, so there is no path from this class to an octet on the wire that
+   * skips it.
+   *
+   * The reply is an acknowledgement with no values: {@link accepted} on the status is the whole answer, and
+   * a caller that wants to know what the device now holds has to read it back.
+   *
+   * @throws {DeviceError} if any parameter is not writable by this app.
+   */
+  async write(entries: readonly Tlv[]): Promise<Response> {
+    const refused = entries.filter((entry) => !isWritable(entry.param));
+    if (refused.length > 0) {
+      const named = refused.map((entry) => `${describe(entry.param)} (${entry.param})`).join(", ");
+      throw new DeviceError(`this app does not write ${named}`);
+    }
+    return exchange(this.connection, FUNCTION.writeConfig, writeConfigBody(entries));
   }
 
   /**

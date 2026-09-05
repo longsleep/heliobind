@@ -5,7 +5,7 @@
  * `app.ts` is left with nothing but the sequence of events — which is the part worth reading.
  */
 
-import { describe, label } from "../protocol/params.ts";
+import { describe, type Group, label, type Param } from "../protocol/params.ts";
 import { accepted, type Response } from "../protocol/response.ts";
 
 function el<T extends HTMLElement>(id: string): T {
@@ -35,6 +35,14 @@ export const dom = {
   readProvisioning: el<HTMLButtonElement>("read-provisioning"),
   readSpace: el<HTMLButtonElement>("read-space"),
   info: el<HTMLButtonElement>("info"),
+  writer: el<HTMLDetailsElement>("writer"),
+  configure: el<HTMLDetailsElement>("configure"),
+  groups: el("groups"),
+  restart: el<HTMLButtonElement>("restart"),
+  linkStatus: el<HTMLButtonElement>("link-status"),
+  writeParam: el<HTMLSelectElement>("write-param"),
+  writeValue: el<HTMLInputElement>("write-value"),
+  write: el<HTMLButtonElement>("write"),
   clearResult: el<HTMLButtonElement>("clear-result"),
   clearLog: el<HTMLButtonElement>("clear-log"),
   result: el<HTMLPreElement>("result"),
@@ -146,13 +154,107 @@ export function renderResponse(response: Response): string {
 
 /** Offer every known parameter, with its summary as a tooltip. */
 export function fillParameters(params: readonly { number: number; name: string; summary: string }[]): void {
+  fill(dom.param, params);
+}
+
+/** Offer the parameters this app is allowed to write, which is a much shorter list. */
+export function fillWritable(params: readonly { number: number; name: string; summary: string }[]): void {
+  fill(dom.writeParam, params);
+  // Nothing to offer means nothing to write, so the fold is not worth showing at all.
+  dom.writer.hidden = params.length === 0;
+}
+
+function fill(
+  select: HTMLSelectElement,
+  params: readonly { number: number; name: string; summary: string }[],
+): void {
   for (const param of params) {
     const option = document.createElement("option");
     option.value = String(param.number);
     option.textContent = `${param.number} — ${param.name}`;
     option.title = param.summary;
-    dom.param.append(option);
+    select.append(option);
   }
+}
+
+/**
+ * Build a fieldset per write group, each with an input per parameter.
+ *
+ * The write button starts disabled and stays that way until the group has been read: a write sends only
+ * what differs from what the device holds, and "what it holds" is not known until somebody asks. That is
+ * the vendor's own sequence, and it is also what keeps a frame from re-asserting values nobody touched.
+ */
+export function renderGroups(
+  groups: readonly Group[],
+  handlers: { read: (group: Group) => void; write: (group: Group) => void },
+): void {
+  dom.groups.replaceChildren();
+  for (const group of groups) {
+    const fieldset = document.createElement("fieldset");
+    fieldset.className = "group";
+    fieldset.dataset.group = group.key;
+
+    const legend = document.createElement("legend");
+    legend.textContent = group.title;
+    fieldset.append(legend);
+
+    const summary = document.createElement("p");
+    summary.className = "note";
+    summary.textContent = group.summary;
+    fieldset.append(summary);
+
+    for (const param of group.params) {
+      const label = document.createElement("label");
+      label.textContent = `${param.number} — ${param.name}`;
+      label.htmlFor = fieldId(group, param);
+      label.title = param.summary;
+      const input = document.createElement("input");
+      input.id = fieldId(group, param);
+      input.type = "text";
+      input.autocomplete = "off";
+      input.spellcheck = false;
+      input.dataset.param = String(param.number);
+      // Nothing is editable before a read, for the same reason the write button is not.
+      input.disabled = true;
+      fieldset.append(label, input);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const read = document.createElement("button");
+    read.type = "button";
+    read.textContent = "Read";
+    read.addEventListener("click", () => handlers.read(group));
+    const write = document.createElement("button");
+    write.type = "button";
+    write.textContent = "Write changes";
+    write.disabled = true;
+    write.dataset.write = group.key;
+    write.addEventListener("click", () => handlers.write(group));
+    actions.append(read, write);
+    fieldset.append(actions);
+
+    dom.groups.append(fieldset);
+  }
+}
+
+/** The input carrying one parameter of one group. */
+export function groupField(group: Group, param: Param): HTMLInputElement | null {
+  return document.getElementById(fieldId(group, param)) as HTMLInputElement | null;
+}
+
+/** Let a group be edited and written, once it has been read. */
+export function groupReadable(group: Group, ready: boolean): void {
+  for (const param of group.params) {
+    const field = groupField(group, param);
+    if (field) field.disabled = !ready;
+  }
+  const write = dom.groups.querySelector<HTMLButtonElement>(`[data-write="${group.key}"]`);
+  if (write) write.disabled = !ready;
+}
+
+function fieldId(group: Group, param: Param): string {
+  return `field-${group.key}-${param.number}`;
 }
 
 /** Show or hide the whole interface, and the parts that depend on a live device. */

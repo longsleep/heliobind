@@ -184,6 +184,52 @@ footer {
 }
 
 /*
+ * The write fold. Same frame as the secrets block, because it is the same kind of thing: a control that is
+ * available but should not be the first thing a thumb lands on.
+ */
+.writer {
+  margin: 1rem 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.writer summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.writer label {
+  margin-top: 0.75rem;
+}
+
+/*
+ * One fieldset per frame the device expects. Bordered because the boundary is the point: everything inside
+ * one goes to the device together or not at all.
+ */
+.group {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.group legend {
+  padding: 0 0.35rem;
+  font-weight: 600;
+}
+
+.group input:disabled {
+  opacity: 0.6;
+}
+
+.caution {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/*
  * The heading row: identity on the left, where the source lives on the right.
  *
  * `space-between` rather than a margin, so the link stays pinned to the right edge whatever the name

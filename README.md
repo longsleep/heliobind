@@ -11,8 +11,20 @@ is the vendor's own word for the ritual this replaces. It is the Bluetooth half 
 to the datalogger, which is shared across the family — NOAH 2000, NEXA 2000, AURA 5000 and VETA 2000 — so
 the configuration space, the framing and the cipher are common to all of them.
 
-**This version is read-only.** It can discover a device, connect, and read its configuration parameters. It
-cannot change anything — there is no write path in the code at all yet.
+**It reads everything and changes three things.** Discovery, connection and a read of any configuration
+parameter; and writes for the settings that decide whether the device can be reached at all — the Wi-Fi
+network it joins, whether it is addressed by DHCP or statically, and where it reports. Everything else is
+read-only, and the permitted set is a list in `src/protocol/params.ts` rather than a condition in a handler.
+
+**Each of those goes to the device as one frame**, in the order the vendor's own client uses, carrying only
+the fields that differ from what was just read. A network name without its passphrase, or a static address
+without the flag that selects it, is a device that cannot be reached — so the group is the unit, not the
+parameter. Nothing takes effect until the datalogger restarts, which is a separate button, so a change can
+be staged and read back before it is committed.
+
+> ⚠ **Bluetooth is the way back from all of it**, which is why these writes are offered here and not
+> elsewhere. It is also the only way back: recovering a device that was pointed at the wrong network means
+> standing next to it with this page open.
 
 > **A personal weekend project, built with heavy AI assistance.** It runs against exactly one device — the
 > author's — and it is written to be honest about what has actually been observed rather than to be a

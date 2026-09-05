@@ -16,10 +16,17 @@ import {
   describe,
   everyChoice,
   everyParam,
+  GROUPS,
+  type Group,
+  LINK_STATUS,
   numbersOf,
   PARAM_SPACE_LAST,
+  type Param,
   PROVISIONING,
+  RESTART,
+  WRITABLE,
 } from "../protocol/params.ts";
+import { accepted } from "../protocol/response.ts";
 import { install } from "../pwa.ts";
 import { forget, load, save } from "../settings.ts";
 import { Connection, choose, isSupported } from "../transport/ble.ts";
@@ -31,7 +38,11 @@ import {
   describeError,
   dom,
   fillParameters,
+  fillWritable,
+  groupField,
+  groupReadable,
   log,
+  renderGroups,
   renderReading,
   setStatus,
   visibility,
@@ -175,6 +186,193 @@ async function readSet(params: readonly number[], what: string): Promise<void> {
   });
 }
 
+/**
+ * Write one setting and read it straight back.
+ *
+ * The read-back is not a nicety. A write is acknowledged with a status and no values, so an accepted write
+ * tells you the device understood the frame — not that it stored what you meant, and not that the value
+ * survives whatever the firmware does to it. Only a read afterwards distinguishes those, so the button
+ * always does both and reports both.
+ */
+async function writeSetting(): Promise<void> {
+  const session = device;
+  if (!session) return;
+
+  const param = Number(dom.writeParam.value);
+  const value = dom.writeValue.value;
+  if (!Number.isFinite(param)) return;
+
+  const before = dom.writeValue.value.trim() === "" ? "an empty value" : `"${value}"`;
+  appendResult(`writing ${describe(param)} = ${before}…`);
+
+  await whileBusy([dom.write], async () => {
+    try {
+      const answer = await session.write([{ param, value }]);
+      appendResult(
+        accepted(answer)
+          ? `${describe(param).padEnd(22)} write accepted`
+          : `${describe(param).padEnd(22)} write refused, status ${answer.status}`,
+      );
+      log(`wrote ${param}: status ${answer.status}`);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      appendResult(`${describe(param).padEnd(22)} write failed: ${reason}`);
+      log(`write of ${param} failed: ${reason}`);
+      return;
+    }
+
+    // Whatever the device now holds, which is the only answer worth having.
+    try {
+      const back = await session.read([param]);
+      const held = back.values.find((entry) => entry.param === param);
+      appendResult(
+        held
+          ? `${describe(param).padEnd(22)} now ${renderReading(param, held.value)}`
+          : `${describe(param).padEnd(22)} read back gave no entry`,
+      );
+    } catch (error) {
+      appendResult(`${describe(param).padEnd(22)} could not be read back: ${reasonOf(error)}`);
+    }
+  });
+}
+
+function reasonOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * What each group held when it was last read.
+ *
+ * A write sends only the parameters that differ from this, which is what the vendor's own client does. The
+ * reason is not economy: a frame that re-asserts every field also re-asserts the ones somebody else changed
+ * in between, and the device cannot tell the difference between "set this again" and "set this back".
+ */
+const held = new Map<string, Map<number, string>>();
+
+/** Read one group and fill its fields. */
+async function readGroup(group: Group): Promise<void> {
+  const session = device;
+  if (!session) return;
+
+  appendResult(`reading ${group.title}…`);
+  await whileBusy([dom.restart, dom.linkStatus], async () => {
+    try {
+      // One request for the whole group, in the order the device expects them back.
+      const answer = await session.read(group.params.map((param) => param.number));
+      const values = new Map(answer.values.map((value) => [value.param, value.value]));
+      held.set(group.key, values);
+      for (const param of group.params) {
+        const field = groupField(group, param);
+        // A parameter the device did not answer for is left empty rather than filled with a guess, and an
+        // empty field written back is an empty value — which is a legitimate setting here, not a mistake.
+        if (field) field.value = values.get(param.number) ?? "";
+        appendResult(
+          `${describe(param.number).padEnd(22)} ${renderReading(param.number, values.get(param.number) ?? "")}`,
+        );
+      }
+      groupReadable(group, true);
+    } catch (error) {
+      appendResult(`${group.title}: could not be read: ${reasonOf(error)}`);
+    }
+  });
+}
+
+/** Write what changed in one group, as one frame, then read it back. */
+async function writeGroup(group: Group): Promise<void> {
+  const session = device;
+  if (!session) return;
+
+  const before = held.get(group.key);
+  if (!before) {
+    appendResult(`${group.title}: read it first — a write sends only what differs`);
+    return;
+  }
+
+  const edits = group.params
+    .map((param) => ({ param, field: groupField(group, param) }))
+    .filter((entry): entry is { param: Param; field: HTMLInputElement } => entry.field !== null)
+    .filter((entry) => entry.field.value !== (before.get(entry.param.number) ?? ""))
+    .map((entry) => ({ param: entry.param.number, value: entry.field.value }));
+
+  if (edits.length === 0) {
+    appendResult(`${group.title}: nothing changed, so nothing sent`);
+    return;
+  }
+
+  // Named in full, because this is the last point at which a person can stop it and the device has no
+  // undo. The list is what will actually go out, not what the form holds.
+  const summary = edits
+    .map((edit) => `${describe(edit.param)} = ${edit.value === "" ? "(empty)" : edit.value}`)
+    .join("\n");
+  if (group.disruptive && !confirm(`Write ${group.title}?\n\n${summary}\n\nBluetooth is the way back.`)) {
+    appendResult(`${group.title}: not written`);
+    return;
+  }
+
+  await whileBusy([dom.restart, dom.linkStatus], async () => {
+    try {
+      const answer = await session.write(edits);
+      appendResult(
+        accepted(answer)
+          ? `${group.title}: ${edits.length} parameter(s) accepted`
+          : `${group.title}: refused, status ${answer.status}`,
+      );
+      log(`wrote ${group.key}: ${edits.map((edit) => edit.param).join(", ")}, status ${answer.status}`);
+    } catch (error) {
+      appendResult(`${group.title}: write failed: ${reasonOf(error)}`);
+      return;
+    }
+  });
+  // Whatever it now holds, which is the only answer worth having — and it refreshes the baseline, so a
+  // second write sends only what changed since this read.
+  await readGroup(group);
+  appendResult(`${group.title}: restart the datalogger for it to take effect`);
+}
+
+/** Restart the datalogger, which is how a staged change is committed. */
+async function restartDatalogger(): Promise<void> {
+  const session = device;
+  if (!session) return;
+  if (
+    !confirm("Restart the datalogger?\n\nIt reboots and reconnects by itself; telemetry pauses meanwhile.")
+  ) {
+    return;
+  }
+  await whileBusy([dom.restart], async () => {
+    try {
+      const answer = await session.write([{ param: RESTART.number, value: "1" }]);
+      appendResult(accepted(answer) ? "restart accepted" : `restart refused, status ${answer.status}`);
+    } catch (error) {
+      appendResult(`restart failed: ${reasonOf(error)}`);
+    }
+  });
+}
+
+/**
+ * Ask the device about its own two links.
+ *
+ * The only confirmation a change worked, short of the device turning up somewhere else: the router status
+ * says whether it joined, the server status whether it reported in. Both take a while after a restart, so
+ * an unexpected value shortly afterwards means "not yet" rather than "failed".
+ */
+async function checkLinks(): Promise<void> {
+  const session = device;
+  if (!session) return;
+  await whileBusy([dom.linkStatus], async () => {
+    try {
+      const answer = await session.read(LINK_STATUS.map((param) => param.number));
+      for (const param of LINK_STATUS) {
+        const value = answer.values.find((entry) => entry.param === param.number);
+        appendResult(
+          `${describe(param.number).padEnd(22)} ${value ? renderReading(param.number, value.value) : "(no answer)"}`,
+        );
+      }
+    } catch (error) {
+      appendResult(`could not read the link status: ${reasonOf(error)}`);
+    }
+  });
+}
+
 /** Read the informational characteristic: no framing, no cipher, no checksum. A transport check. */
 async function readInfo(): Promise<void> {
   const link = connection;
@@ -265,7 +463,7 @@ function wireSecrets(): void {
 
 /** Bootstrap. Called once, from `main.ts`. */
 export function start(): void {
-  dom.build.textContent = `build ${BUILD} · read-only`;
+  dom.build.textContent = `build ${BUILD}`;
   offlineAndUpdates();
 
   if (!isSupported()) {
@@ -274,6 +472,7 @@ export function start(): void {
   }
 
   fillParameters(everyChoice());
+  fillWritable(WRITABLE);
   wireSecrets();
   visibility.ready();
 
@@ -293,4 +492,8 @@ export function start(): void {
   dom.clearResult.addEventListener("click", clearResult);
   dom.clearLog.addEventListener("click", clearLog);
   dom.info.addEventListener("click", () => void readInfo());
+  dom.write.addEventListener("click", () => void writeSetting());
+  dom.restart.addEventListener("click", () => void restartDatalogger());
+  dom.linkStatus.addEventListener("click", () => void checkLinks());
+  renderGroups(GROUPS, { read: (group) => void readGroup(group), write: (group) => void writeGroup(group) });
 }

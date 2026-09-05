@@ -33,7 +33,7 @@ export interface Param {
   readonly labels?: Readonly<Record<string, string>>;
 }
 
-/** Shorthand for a parameter nothing may write, which is all of them for now. */
+/** Shorthand for a parameter nothing may write, which is most of them. */
 function readOnly(
   number: number,
   name: string,
@@ -42,6 +42,23 @@ function readOnly(
   labels?: Param["labels"],
 ): Param {
   return { number, name, summary, writable: false, confidence, ...(labels && { labels }) };
+}
+
+/**
+ * Shorthand for a parameter this app may write.
+ *
+ * Deliberately rare. A write over this transport reaches the same configuration space that decides which
+ * server the device dials and which network it joins, and the device has no undo — so a parameter is added
+ * here only once writing it has been shown to be recoverable, and each addition should say how.
+ */
+function writable(
+  number: number,
+  name: string,
+  confidence: Param["confidence"],
+  summary: string,
+  labels?: Param["labels"],
+): Param {
+  return { number, name, summary, writable: true, confidence, ...(labels && { labels }) };
 }
 
 // What the device is.
@@ -78,19 +95,36 @@ export const BLE_HANDSHAKE_KEY = readOnly(
 export const SDK_VERSION = readOnly(61, "sdk_version", "device", "ESP-IDF version of the running build.");
 
 // The network it joined.
-export const WIFI_SSID = readOnly(
+export const WIFI_SSID = writable(
   56,
   "wifi_ssid",
   "device",
-  "Wi-Fi network name. Readable in clear. Writing this wrongly takes the device off the network.",
+  "Wi-Fi network name. Readable in clear. Written with the passphrase in one frame, never alone.",
 );
-export const WIFI_PASSWORD = readOnly(
+export const WIFI_PASSWORD = writable(
   57,
   "wifi_password",
   "device",
-  "Wi-Fi passphrase. Returned in clear by a read.",
+  "Wi-Fi passphrase. Returned in clear by a read, and written with the network name in one frame.",
 );
 export const WIFI_SIGNAL = readOnly(76, "wifi_signal", "device", "Signal strength in dBm, sign as sent.");
+
+// The two links the datalogger reports on itself, and what a provisioning attempt is confirmed by. Both
+// meanings come from the vendor app's own polling loop and agree with a device connected to a local bridge.
+export const ROUTER_STATUS = readOnly(
+  55,
+  "router_status",
+  "vendor-app",
+  'The link to the router. "0" means joined; anything else is a failure code.',
+  { "0": "joined" },
+);
+export const SERVER_STATUS = readOnly(
+  60,
+  "server_status",
+  "vendor-app",
+  'The link to the server. "3", "4" and "16" mean connected.',
+  { "3": "connected", "4": "connected", "16": "connected" },
+);
 export const DHCP_LEASE_0 = readOnly(
   139,
   "dhcp_lease_0",
@@ -103,17 +137,32 @@ export const DHCP_LEASE_1 = readOnly(
   "device",
   "Address, mask, gateway and resolver of the joined network.",
 );
-export const DNS_IP = readOnly(12, "dns_ip", "device", "Resolver the device is configured with.");
+export const DNS_IP = writable(
+  12,
+  "dns_ip",
+  "device",
+  "Resolver the device is configured with. The vendor app writes it from the cloud path only; over Bluetooth it never does, though the device takes it either way.",
+);
 
 // Where it reports. The three this app exists to change.
-export const SERVER_ADDRESS = readOnly(
+export const SERVER_ADDRESS = writable(
   17,
   "server_address",
   "device",
-  "Hostname or address the device reports to. Reads back the vendor's broker; a write is untested.",
+  "Where the device reports. The same setting as 19 — the firmware hands both to one endpoint setter, so whichever is written last wins.",
 );
-export const REMOTE_PORT = readOnly(18, "remote_port", "device", "Port the device dials.");
-export const REMOTE_URL = readOnly(19, "remote_url", "device", "Hostname the device dials.");
+export const REMOTE_PORT = writable(
+  18,
+  "remote_port",
+  "device",
+  "Port the device dials. Its own handler, so it takes effect independently of the host.",
+);
+export const REMOTE_URL = writable(
+  19,
+  "remote_url",
+  "device",
+  "The same setting as 17, not a second hostname field. The vendor app blanks whichever it is not using; copying that leaves no stale value behind.",
+);
 
 // How it behaves once connected.
 export const DATA_INTERVAL = readOnly(4, "data_interval", "device", "Telemetry cadence in seconds.");
@@ -126,7 +175,7 @@ export const TIMEZONE = readOnly(
 );
 
 // Actions rather than settings.
-export const RESTART = readOnly(
+export const RESTART = writable(
   32,
   "restart",
   "vendor-app",
@@ -141,29 +190,30 @@ export const FACTORY_RESET = readOnly(
 
 // The static address configuration, which DHCP_DISABLED selects between. Unused while DHCP is on, so on
 // this device all three read factory values and describe no live network.
-export const STATIC_NETWORK_IP = readOnly(
+export const STATIC_NETWORK_IP = writable(
   14,
   "static_network_ip",
   "vendor-app",
   "Address used when DHCP is disabled. Reads 192.168.5.1 while DHCP is on.",
 );
-export const STATIC_NETWORK_MASK = readOnly(
+export const STATIC_NETWORK_MASK = writable(
   25,
   "static_network_mask",
   "vendor-app",
   "Netmask used when DHCP is disabled.",
 );
-export const STATIC_NETWORK_GATEWAY = readOnly(
+export const STATIC_NETWORK_GATEWAY = writable(
   26,
   "static_network_gateway",
   "vendor-app",
   "Gateway used when DHCP is disabled.",
 );
-export const DHCP_DISABLED = readOnly(
+export const DHCP_DISABLED = writable(
   71,
   "dhcp_disabled",
   "vendor-app",
-  '"1" disables DHCP and uses 14/25/26; "0" leaves DHCP in charge.',
+  '"1" disables DHCP and uses 14/25/26; "0" leaves DHCP in charge. Written first in its group, ahead of the addresses that only matter once it is set.',
+  { "0": "DHCP", "1": "static" },
 );
 
 // Five fields shaped like a MAC, address, mask, gateway and resolver, each equal to the factory default of
@@ -194,22 +244,30 @@ export const ASSEMBLED_VALUES = readOnly(
   "inferred",
   "A concatenation of other parameters, including the handshake key of 54.",
 );
-export const UNKNOWN_55 = readOnly(
-  55,
-  "unknown_55",
-  "inferred",
-  "Read by the vendor app during provisioning. Contents unknown, which is why it is a good first read.",
-);
-export const UNKNOWN_60 = readOnly(60, "unknown_60", "device", 'Reads back "16". Meaning unestablished.');
-
 // The two lists of paired accessories, one per transport. Both read back as the bare prefix "DEV:" with
 // nothing paired. Entries are "&"-separated, each "<mode>-<index>-<address>", and the list is edited by
 // writing a command prefix: "ADD:", "DEL:" or "CRL:". A delete marks an entry rather than removing it.
-export const ACCESSORY_LIST_LAN = readOnly(
+/**
+ * The one parameter this app writes, and the reason it is the one.
+ *
+ * Writing it changes nothing that can strand the device: the list lives in RAM, so a restart clears it
+ * whatever state it was left in, and an empty list is the normal state for a device with no accessories.
+ * It is therefore the cheapest possible proof that a write other than the handshake reaches the
+ * configuration space — read it, write it, read it again.
+ *
+ * Three commands, and only one of them removes what this app can add:
+ *
+ * - `ADD:<type>-<mode>-<address>,<name>` creates an entry. Mode 1 is an accessory at a known address.
+ * - `DEL:` with the same fields **tombstones** it — the entry stays in the list reading state `5` rather
+ *   than disappearing, and only a restart drops it.
+ * - `CRL:<type>-7-<payload>` clears **mode 7 only**, the entries a device found by mDNS. It is accepted
+ *   against a mode-1 entry and does nothing to it, which reads as a write that failed silently and is not.
+ */
+export const ACCESSORY_LIST_LAN = writable(
   122,
   "accessory_list_lan",
   "device",
-  "Accessories the device reaches over the network, such as an energy meter it polls by address.",
+  'Accessories the device reaches over the network, such as an energy meter it polls by address. Writable: "ADD:<type>-1-<address>,<name>" adds one and "DEL:" with the same fields tombstones it as state 5. The list is RAM-only, so a restart clears it.',
 );
 export const ACCESSORY_LIST_RF = readOnly(
   102,
@@ -257,10 +315,10 @@ export const PARAMS: readonly Param[] = [
   RESTART,
   FACTORY_RESET,
   BLE_HANDSHAKE_KEY,
-  UNKNOWN_55,
+  ROUTER_STATUS,
   WIFI_SSID,
   WIFI_PASSWORD,
-  UNKNOWN_60,
+  SERVER_STATUS,
   SDK_VERSION,
   DHCP_DISABLED,
   WIFI_SIGNAL,
@@ -408,9 +466,79 @@ export function label(number: number, value: string): string | undefined {
 /**
  * Whether this app may write a parameter.
  *
- * There is no write path in the code yet. This exists so that when there is, the permitted set is a
- * reviewable list rather than a condition somewhere in a handler.
+ * The permitted set is a reviewable list rather than a condition somewhere in a handler: adding a
+ * parameter to it is a visible edit to {@link WRITABLE}, and {@link Device.write} refuses anything absent
+ * from it before a frame is built.
  */
 export function isWritable(number: number): boolean {
   return lookup(number)?.writable ?? false;
 }
+
+/**
+ * Every parameter this app will write, in the order a control offers them.
+ *
+ * One entry today. The list exists so that the answer to "what can this app change?" is a list somebody
+ * can read, rather than a search through the table for a flag.
+ */
+export const WRITABLE: readonly Param[] = PARAMS.filter((param) => param.writable);
+
+/**
+ * A set of parameters that belong in one write.
+ *
+ * The vendor's own client never writes these one at a time, and the reason is worth keeping: a network
+ * name without its passphrase, or a static address without the flag that selects it, is a device that
+ * cannot be reached. One frame carries the whole group or none of it.
+ *
+ * The order is the vendor's order too — the DHCP flag ahead of the addresses it selects between, the
+ * hostname ahead of the address that shares its setting — since the device applies entries as they arrive.
+ */
+export interface Group {
+  /** Stable identifier, used in the interface. */
+  readonly key: string;
+  /** What to call it. */
+  readonly title: string;
+  /** What it does, and what it costs to get wrong. */
+  readonly summary: string;
+  /** The parameters, in the order they go into the frame. */
+  readonly params: readonly Param[];
+  /** Whether getting this wrong can leave the device unreachable over the network. */
+  readonly disruptive: boolean;
+}
+
+export const WIFI_GROUP: Group = {
+  key: "wifi",
+  title: "Wi-Fi network",
+  summary:
+    "The network the device joins. Both fields go in one frame: a name without its passphrase is a device on no network. Recovery is another Bluetooth session — this one.",
+  params: [WIFI_SSID, WIFI_PASSWORD],
+  disruptive: true,
+};
+
+export const ADDRESSING_GROUP: Group = {
+  key: "addressing",
+  title: "Addressing",
+  summary:
+    'DHCP or a static address. The flag leads, then the address, gateway and mask it selects between. Setting the flag to "1" without an address that works on this network is the most effective way to lose the device.',
+  params: [DHCP_DISABLED, STATIC_NETWORK_IP, STATIC_NETWORK_GATEWAY, STATIC_NETWORK_MASK, DNS_IP],
+  disruptive: true,
+};
+
+export const SERVER_GROUP: Group = {
+  key: "server",
+  title: "Server",
+  summary:
+    "Where the device reports. 17 and 19 are one setting, so both are written — the vendor's client blanks whichever it is not using, which leaves no stale value for the next writer to inherit.",
+  params: [REMOTE_URL, SERVER_ADDRESS, REMOTE_PORT],
+  disruptive: true,
+};
+
+export const GROUPS: readonly Group[] = [WIFI_GROUP, ADDRESSING_GROUP, SERVER_GROUP];
+
+/**
+ * What the device says about its own two links.
+ *
+ * Read after a change rather than before: the router status turns to `"0"` once it has joined, and the
+ * server status to `"3"`, `"4"` or `"16"` once it has reported in. Together they are the only confirmation
+ * a client gets that a change worked, short of the device appearing somewhere else.
+ */
+export const LINK_STATUS: readonly Param[] = [ROUTER_STATUS, SERVER_STATUS];
