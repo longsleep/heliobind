@@ -173,6 +173,18 @@ for (const name of iconNames) {
   await copyFile(join("icons", name), join(OUT, "icons", name));
 }
 
+/*
+ * The screenshots the manifest names, copied for the same reason as the icons: the bundler does not read
+ * the manifest's JSON, and a hashed name would need the manifest rewritten to match.
+ *
+ * Not precached, for the same reason the licence below is not. They are shown by the browser's install
+ * card and never by the app, so an offline copy is half a megabyte spent on something nobody will see.
+ */
+await mkdir(join(OUT, "screenshots"), { recursive: true });
+for (const name of (await readdir("screenshots")).filter((name) => name.endsWith(".png"))) {
+  await copyFile(join("screenshots", name), join(OUT, "screenshots", name));
+}
+
 // The built page is a distribution of the work, so the licence and the notice travel with it. Not
 // precached: they are not part of the app shell, and an offline copy of a licence helps nobody.
 for (const name of ["LICENSE", "NOTICE"]) {
