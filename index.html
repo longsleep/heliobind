@@ -149,12 +149,13 @@
             -->
             <span class="pane-heading">
               <span>Protocol constants</span>
-              <button id="forget" class="clear" type="button">Clear</button>
+              <button id="forget" class="clear" type="button">Reset</button>
             </span>
           </summary>
           <p class="note" id="secrets-absent">
             Not distributed with this app. The cipher key and IV are sixteen characters each; the handshake
-            key is what a device is greeted with.
+            key is what a device is greeted with. Values entered here are used in place of anything the build
+            carries, so Reset is what gives them back.
           </p>
 
           <!--
@@ -164,7 +165,7 @@
           -->
           <p class="note" id="secrets-supplied" hidden>
             This build carries the constants, so there is nothing to enter. They are masked because they are
-            credentials. Type over them to use different ones.
+            credentials. Type over them to use different ones, and Reset to come back to these.
           </p>
 
           <label for="cipher-key">Cipher key</label>

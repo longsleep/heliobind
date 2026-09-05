@@ -3,8 +3,24 @@ apply plugin: 'com.android.application'
 android {
     namespace = "org.longsleep.heliobind"
     compileSdk = rootProject.ext.compileSdkVersion
+    /*
+     * The protocol constants, when a build was given them.
+     *
+     * They are compiled into DEX rather than written into the web assets, which are plain files inside the
+     * package: a key in the bundle is `unzip` and `grep` away, while this takes a decompiler. That is the
+     * same bar the vendor's own application sets, and the reason an APK may carry them at all when the
+     * website may not. A build given nothing compiles empty strings and the app asks, exactly as the page
+     * does.
+     */
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId "org.longsleep.heliobind"
+        buildConfigField "String", "CIPHER_KEY", "\"${System.getenv('HELIOBIND_CIPHER_KEY') ?: ''}\""
+        buildConfigField "String", "CIPHER_IV", "\"${System.getenv('HELIOBIND_CIPHER_IV') ?: ''}\""
+        buildConfigField "String", "BIND_KEY", "\"${System.getenv('HELIOBIND_BIND_KEY') ?: ''}\""
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Stamped by the workflow that builds a release: the name from the tag, the code from the run

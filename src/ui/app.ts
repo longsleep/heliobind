@@ -5,6 +5,7 @@
  * `view.ts` and everything about the device to `Device`. Nothing here knows about framing, ciphers or GATT.
  */
 
+import { supplied } from "#constants";
 import { choose, isSupported, NATIVE, open } from "#transport";
 import { AuthenticationError, Device } from "../device.ts";
 import {
@@ -30,6 +31,8 @@ import {
 import { accepted } from "../protocol/response.ts";
 import { install, offerInstall } from "../pwa.ts";
 import {
+  adoptSupplied,
+  type Field,
   forget,
   load,
   mayOfferInstall,
@@ -546,22 +549,48 @@ function wireSecrets(): void {
   };
   fill();
 
-  // Masked, not hidden: a value the build already carries is not a secret from the person holding the
-  // phone, and typing over it must stay possible. It is a secret from whoever else can see the screen.
-  if (shipped("cipherKey")) dom.cipherKey.type = "password";
-  if (shipped("cipherIv")) dom.cipherIv.type = "password";
-  dom.secretsSupplied.hidden = !shippedWithConstants();
-  dom.secretsAbsent.hidden = shippedWithConstants();
-
-  // The handshake key is a choice rather than a masked field, because it is the one constant that is
-  // per-device: a build cannot know that the key it carries is the right one for the device in front of
-  // somebody, so it offers its own and takes a typed one instead when the offer is declined.
+  /**
+   * Present each constant as what it actually is.
+   *
+   * A value the build carries is masked and described as the build's; a value somebody typed is shown
+   * plainly and described as theirs, even in a build that carries all three — because a stored value wins,
+   * and presenting it as the build's makes the one thing nobody can then check the one thing in force.
+   *
+   * Re-run rather than settled at start-up, so Reset visibly returns the app to what the build carries.
+   */
   const ownKey = (): void => {
     dom.keyOwn.hidden = shipped("bindKey") && dom.keyBuiltin.checked;
   };
-  dom.keyBuiltinRow.hidden = !shipped("bindKey");
-  dom.keyBuiltin.checked = usingShippedBindKey();
-  ownKey();
+  /**
+   * The fields still showing what the build carries, rather than something somebody typed.
+   *
+   * Tracked here rather than asked of the store, because the store only learns of a new value when the
+   * field is committed — and the moment that matters is the keystroke before that.
+   */
+  const untouched = new Set<Field>();
+
+  const applyMode = (): void => {
+    // Masked, not hidden: a value the build already carries is not a secret from the person holding the
+    // phone, and typing over it must stay possible. It is a secret from whoever else can see the screen.
+    dom.cipherKey.type = shipped("cipherKey") ? "password" : "text";
+    dom.cipherIv.type = shipped("cipherIv") ? "password" : "text";
+    dom.secretsSupplied.hidden = !shippedWithConstants();
+    dom.secretsAbsent.hidden = shippedWithConstants();
+
+    // The handshake key is a choice rather than a masked field, because it is the one constant that is
+    // per-device: a build cannot know that the key it carries is the right one for the device in front of
+    // somebody, so it offers its own and takes a typed one instead when the offer is declined.
+    dom.keyBuiltinRow.hidden = !shipped("bindKey");
+    dom.keyBuiltin.checked = usingShippedBindKey();
+    ownKey();
+
+    untouched.clear();
+    for (const field of ["cipherKey", "cipherIv"] as const) {
+      if (shipped(field)) untouched.add(field);
+    }
+  };
+  applyMode();
+
   dom.keyBuiltin.addEventListener("change", () => {
     useShippedBindKey(dom.keyBuiltin.checked);
     ownKey();
@@ -580,6 +609,23 @@ function wireSecrets(): void {
   };
 
   const remember = (field: "cipherKey" | "cipherIv" | "bindKey", input: HTMLInputElement): void => {
+    /*
+     * Typing over a value the build carries starts from nothing, and stops masking it.
+     *
+     * `beforeinput` rather than `input`, because it arrives while the field still holds the old value: the
+     * keystroke then lands in an empty field instead of being appended to a value that would become
+     * readable the moment the mask came off. The mask exists so the constant cannot be read off a screen,
+     * and revealing it in the act of replacing it would undo exactly that.
+     *
+     * Only the two masked fields have anything to hide this way, which `untouched` already accounts for.
+     */
+    input.addEventListener("beforeinput", () => {
+      if (!untouched.has(field)) return;
+      untouched.delete(field);
+      input.value = "";
+      input.type = "text";
+    });
+
     input.addEventListener("input", () => {
       if (field !== "bindKey") applyCipher();
       refreshConnect();
@@ -598,11 +644,10 @@ function wireSecrets(): void {
     forget();
     useShippedBindKey(true);
     for (const input of [dom.cipherKey, dom.cipherIv, dom.key]) input.value = "";
-    // Back to whatever the build supplies, rather than to nothing: forgetting is about the values that
+    // Back to whatever the build supplies, rather than to nothing: resetting is about the values that
     // were typed here, and a build that carries its own still does after they are gone.
     fill();
-    dom.keyBuiltin.checked = usingShippedBindKey();
-    ownKey();
+    applyMode();
     dom.secrets.open = true;
     applyCipher();
     refreshConnect();
@@ -616,8 +661,15 @@ function wireSecrets(): void {
   dom.secrets.open = dom.connect.disabled;
 }
 
-/** Bootstrap. Called once, from `main.ts`. */
-export function start(): void {
+/**
+ * Bootstrap. Called once, from `main.ts`.
+ *
+ * Asynchronous for one reason: a packaged build keeps its constants in native code and has to ask for them,
+ * and everything downstream reads them synchronously. Asking first is what lets the rest stay simple. A
+ * browser build answers immediately with nothing to add, having compiled them in already.
+ */
+export async function start(): Promise<void> {
+  adoptSupplied(await supplied());
   dom.build.textContent = `build ${BUILD}`;
   // A packaged app is already installed and already offline: it has no service worker to update and no
   // install to offer. Both are the browser's furniture, and `NATIVE` is a constant of whichever transport

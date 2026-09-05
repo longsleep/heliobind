@@ -28,6 +28,10 @@
     "#transport": {
       "capacitor": "./src/transport/native.ts",
       "default": "./src/transport/web.ts"
+    },
+    "#constants": {
+      "capacitor": "./src/constants/native.ts",
+      "default": "./src/constants/web.ts"
     }
   },
   "bin": {

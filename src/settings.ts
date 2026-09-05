@@ -75,25 +75,59 @@ function fromBuild(read: () => string | undefined): string {
   }
 }
 
+/**
+ * What the build supplied, from wherever it came.
+ *
+ * The browser half compiles the three into the bundle and they are in {@link SHIPPED} already. The Android
+ * half keeps them in native `BuildConfig`, out of the web assets, and hands them over at start-up — so this
+ * is filled in once, before anything reads it, and everything downstream stays synchronous.
+ */
+let supplied: Secrets = SHIPPED;
+
+/**
+ * Take what the platform supplied, before the interface is wired.
+ *
+ * Only non-empty values count: a half that has nothing to add must not blank out what the other compiled
+ * in. Held in memory rather than stored — this is a property of the build, not a choice somebody made, and
+ * writing it to the browser's storage would outlive the build that carried it.
+ */
+export function adoptSupplied(values: Partial<Secrets>): void {
+  supplied = {
+    cipherKey: values.cipherKey || SHIPPED.cipherKey,
+    cipherIv: values.cipherIv || SHIPPED.cipherIv,
+    bindKey: values.bindKey || SHIPPED.bindKey,
+  };
+}
+
 /** Whether this build was given the constants. */
 export function shippedWithConstants(): boolean {
-  return Boolean(SHIPPED.cipherKey && SHIPPED.cipherIv && SHIPPED.bindKey);
+  return shipped("cipherKey") && shipped("cipherIv") && shipped("bindKey");
+}
+
+/** Whether something in the store is standing in for whatever the build carried. */
+export function typed(field: Field): boolean {
+  return read(field) !== "";
 }
 
 /**
- * Whether the build supplied one particular constant.
+ * Whether this build's own value is the one in force for a particular constant.
  *
- * Asked per field rather than for all three, because the interface treats a supplied value differently
- * from a typed one: there is nothing to be gained by displaying back a value that is already inside the
- * build, and something to be lost by putting it on a screen in a place where the device is in range.
+ * False as soon as something has been typed, even in a build that carries all three — a stored value wins
+ * over a compiled one, so the interface must present the stored one *as* what it is. Getting this wrong is
+ * not cosmetic: a typed value shown masked and described as "carried by this build" is a value nobody can
+ * check, and a wrong character in it produces a device that connects, receives a frame it cannot read, and
+ * hangs up. Which is exactly the hour this cost.
+ *
+ * Asked per field rather than for all three, because the two halves are independent: somebody may keep the
+ * built-in cipher pair and greet a device with a handshake key of their own.
  */
 export function shipped(field: Field): boolean {
-  return Boolean(SHIPPED[field]);
+  return Boolean(supplied[field]) && !typed(field);
 }
 
 /** The handshake key this build carries, if it carries one. */
 export function shippedBindKey(): string {
-  return SHIPPED.bindKey;
+  return supplied.bindKey;
 }
 
 /**
@@ -104,7 +138,7 @@ export function shippedBindKey(): string {
  * in front of somebody — so the key it carries is offered rather than imposed.
  */
 export function usingShippedBindKey(): boolean {
-  if (!SHIPPED.bindKey) return false;
+  if (!shipped("bindKey")) return false;
   try {
     // Absent means never answered, and the default is to use what the build came with: it is the reason
     // the build carries it, and the fold below offers the way out.
@@ -134,8 +168,8 @@ export function load(): Secrets {
   // What was typed wins over what the build carried: a stored value is a deliberate act by whoever is
   // holding the phone, and a build default is a convenience for the common case.
   return {
-    cipherKey: read("cipherKey") || SHIPPED.cipherKey,
-    cipherIv: read("cipherIv") || SHIPPED.cipherIv,
+    cipherKey: read("cipherKey") || supplied.cipherKey,
+    cipherIv: read("cipherIv") || supplied.cipherIv,
     // Deliberately not falling back to what the build carries. A handshake key the build supplies is
     // used through {@link usingShippedBindKey} and never put in the field, so that unticking the box
     // asks for a key rather than revealing the one it was hiding.

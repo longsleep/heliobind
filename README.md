@@ -81,7 +81,7 @@ declines to remove for everyone else.
 
 > Anything you enter is stored in that browser profile and never leaves the device — the app makes no
 > network requests at all, which its content security policy enforces rather than promises. On a shared
-> machine, use **Forget these**.
+> machine, use **Reset**.
 
 ### Reading the handshake key from the device itself
 
