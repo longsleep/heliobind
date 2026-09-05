@@ -83,7 +83,8 @@ button:disabled {
  * follows onto the next row.
  */
 select,
-input[type="text"] {
+input[type="text"],
+input[type="password"] {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -96,18 +97,21 @@ input[type="text"] {
   background: var(--bg);
 }
 
-input[type="text"] {
+input[type="text"],
+input[type="password"] {
   margin-top: 0.5rem;
   font-family: ui-monospace, monospace;
   font-size: 0.9rem;
 }
 
-input[type="text"]::placeholder {
+input[type="text"]::placeholder,
+input[type="password"]::placeholder {
   color: var(--muted);
   font-family: system-ui, sans-serif;
 }
 
 input[type="text"]:focus-visible,
+input[type="password"]:focus-visible,
 select:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--accent);

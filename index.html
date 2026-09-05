@@ -152,10 +152,19 @@
               <button id="forget" class="clear" type="button">Clear</button>
             </span>
           </summary>
-          <p class="note">
+          <p class="note" id="secrets-absent">
             Not distributed with this app. The cipher key and IV are sixteen characters each; the handshake
-            key is what a device is greeted with. The same values work on any device of this family within
-            range, so treat them as you would a password.
+            key is what a device is greeted with.
+          </p>
+
+          <!--
+            Shown instead when the build carries them. Masked rather than displayed because a value already
+            inside the build gains nothing from being on screen, and a screen is read by whoever is standing
+            near it.
+          -->
+          <p class="note" id="secrets-supplied" hidden>
+            This build carries the constants, so there is nothing to enter. They are masked because they are
+            credentials. Type over them to use different ones.
           </p>
 
           <label for="cipher-key">Cipher key</label>
@@ -178,8 +187,20 @@
             placeholder="16 characters"
           >
 
-          <label for="key">Key presented on connecting</label>
-          <input id="key" type="text" autocomplete="off" spellcheck="false" placeholder="handshake key">
+          <!--
+            Shown only when the build carries a handshake key. What a device is greeted with is a property
+            of that device, and a build cannot know that the key it carries suits the one in front of
+            somebody — so it is offered as a choice, and the field appears when the choice is declined.
+          -->
+          <label class="flag" for="key-builtin" id="key-builtin-row" hidden>
+            <input id="key-builtin" type="checkbox" checked>
+            Use default handshake key
+          </label>
+
+          <div id="key-own">
+            <label for="key">Key presented on connecting</label>
+            <input id="key" type="text" autocomplete="off" spellcheck="false" placeholder="handshake key">
+          </div>
         </details>
 
         <div class="actions">

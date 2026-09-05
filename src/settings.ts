@@ -2,9 +2,9 @@
  * The constants this project does not ship, kept where the person who supplied them can find them again.
  *
  * The Bluetooth interface needs three values that come from the vendor application: a cipher key, a cipher
- * IV, and the handshake key a device is greeted with. They are not in this repository and never will be —
- * the same values open any device of the same family within radio range, and publishing them would hand
- * that out to people who have no business with the battery next door.
+ * IV, and the handshake key a device is greeted with. They are not in this repository and never will be:
+ * they are credentials, and publishing them would hand out to anyone in radio range what only somebody
+ * doing protocol work on their own hardware has a reason to hold.
  *
  * So they are typed in once and remembered. `localStorage` because it is the browser's own store, it
  * survives the app being closed and reinstalled as a PWA, and it never leaves the device — this app makes
@@ -22,6 +22,9 @@ const STORE = {
 } as const;
 
 export type Field = keyof typeof STORE;
+
+/** Set while a typed handshake key is preferred over the one the build carries. */
+const OWN_BIND_KEY = "heliobind.bind.own";
 
 /** Everything the app needs supplied, empty where it has not been. */
 export interface Secrets {
@@ -78,6 +81,50 @@ export function shippedWithConstants(): boolean {
 }
 
 /**
+ * Whether the build supplied one particular constant.
+ *
+ * Asked per field rather than for all three, because the interface treats a supplied value differently
+ * from a typed one: there is nothing to be gained by displaying back a value that is already inside the
+ * build, and something to be lost by putting it on a screen in a place where the device is in range.
+ */
+export function shipped(field: Field): boolean {
+  return Boolean(SHIPPED[field]);
+}
+
+/** The handshake key this build carries, if it carries one. */
+export function shippedBindKey(): string {
+  return SHIPPED.bindKey;
+}
+
+/**
+ * Whether to greet devices with the key this build carries, rather than one that was typed.
+ *
+ * A remembered choice rather than a derived one. What a device is greeted with is a property of that
+ * device, and a build that carries a handshake key has no way to know it is the right one for the device
+ * in front of somebody — so the key it carries is offered rather than imposed.
+ */
+export function usingShippedBindKey(): boolean {
+  if (!SHIPPED.bindKey) return false;
+  try {
+    // Absent means never answered, and the default is to use what the build came with: it is the reason
+    // the build carries it, and the fold below offers the way out.
+    return localStorage.getItem(OWN_BIND_KEY) === null;
+  } catch {
+    return true;
+  }
+}
+
+/** Remember whether the build's own handshake key is in use. */
+export function useShippedBindKey(shippedKey: boolean): void {
+  try {
+    if (shippedKey) localStorage.removeItem(OWN_BIND_KEY);
+    else localStorage.setItem(OWN_BIND_KEY, "1");
+  } catch {
+    // Storage unavailable. The choice holds for this session, which is the part that matters.
+  }
+}
+
+/**
  * Read what was stored, falling back to whatever the build carried.
  *
  * A browser can refuse `localStorage` outright — private windows, storage disabled, an embedded webview —
@@ -89,7 +136,10 @@ export function load(): Secrets {
   return {
     cipherKey: read("cipherKey") || SHIPPED.cipherKey,
     cipherIv: read("cipherIv") || SHIPPED.cipherIv,
-    bindKey: read("bindKey") || SHIPPED.bindKey,
+    // Deliberately not falling back to what the build carries. A handshake key the build supplies is
+    // used through {@link usingShippedBindKey} and never put in the field, so that unticking the box
+    // asks for a key rather than revealing the one it was hiding.
+    bindKey: read("bindKey"),
   };
 }
 

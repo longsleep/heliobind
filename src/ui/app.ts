@@ -28,7 +28,18 @@ import {
 } from "../protocol/params.ts";
 import { accepted } from "../protocol/response.ts";
 import { install, offerInstall } from "../pwa.ts";
-import { forget, load, mayOfferInstall, refuseInstall, save } from "../settings.ts";
+import {
+  forget,
+  load,
+  mayOfferInstall,
+  refuseInstall,
+  save,
+  shipped,
+  shippedBindKey,
+  shippedWithConstants,
+  useShippedBindKey,
+  usingShippedBindKey,
+} from "../settings.ts";
 import { Connection, choose, isSupported } from "../transport/ble.ts";
 import {
   appendResult,
@@ -96,7 +107,7 @@ async function connect(): Promise<void> {
     log("connected");
 
     setStatus("authenticating");
-    device = await Device.open(connection, dom.key.value.trim());
+    device = await Device.open(connection, bindKeyInUse());
     dom.deviceSerial.textContent = device.serial;
     setStatus("ready");
     log(`authenticated; the device reports serial ${device.serial}`);
@@ -129,9 +140,20 @@ function onDisconnected(): void {
  * a refused key, or a frame the device ignores in silence — says nothing about the actual cause. A button
  * that is not offered is clearer than an error that misdirects.
  */
+/**
+ * The handshake key a connection would present.
+ *
+ * The build's own when the box offering it is ticked, and never both: a field left holding a value while
+ * something else is in force is how a wrong key gets diagnosed for an hour.
+ */
+function bindKeyInUse(): string {
+  const builtIn = shipped("bindKey") && dom.keyBuiltin.checked;
+  return builtIn ? shippedBindKey() : dom.key.value.trim();
+}
+
 function refreshConnect(): void {
-  const missing = [dom.cipherKey, dom.cipherIv, dom.key].some((input) => input.value.trim() === "");
-  const ready = !missing && isCipherConfigured();
+  const cipher = [dom.cipherKey, dom.cipherIv].every((input) => input.value.trim() !== "");
+  const ready = cipher && bindKeyInUse() !== "" && isCipherConfigured();
   dom.connect.disabled = !ready;
   dom.connect.title = ready ? "" : "Enter the protocol constants first";
 }
@@ -514,10 +536,35 @@ function installOffer(): void {
  * three are present and a collapsed block gives no hint of that.
  */
 function wireSecrets(): void {
-  const stored = load();
-  dom.cipherKey.value = stored.cipherKey;
-  dom.cipherIv.value = stored.cipherIv;
-  dom.key.value = stored.bindKey;
+  const fill = (): void => {
+    const stored = load();
+    dom.cipherKey.value = stored.cipherKey;
+    dom.cipherIv.value = stored.cipherIv;
+    dom.key.value = stored.bindKey;
+  };
+  fill();
+
+  // Masked, not hidden: a value the build already carries is not a secret from the person holding the
+  // phone, and typing over it must stay possible. It is a secret from whoever else can see the screen.
+  if (shipped("cipherKey")) dom.cipherKey.type = "password";
+  if (shipped("cipherIv")) dom.cipherIv.type = "password";
+  dom.secretsSupplied.hidden = !shippedWithConstants();
+  dom.secretsAbsent.hidden = shippedWithConstants();
+
+  // The handshake key is a choice rather than a masked field, because it is the one constant that is
+  // per-device: a build cannot know that the key it carries is the right one for the device in front of
+  // somebody, so it offers its own and takes a typed one instead when the offer is declined.
+  const ownKey = (): void => {
+    dom.keyOwn.hidden = shipped("bindKey") && dom.keyBuiltin.checked;
+  };
+  dom.keyBuiltinRow.hidden = !shipped("bindKey");
+  dom.keyBuiltin.checked = usingShippedBindKey();
+  ownKey();
+  dom.keyBuiltin.addEventListener("change", () => {
+    useShippedBindKey(dom.keyBuiltin.checked);
+    ownKey();
+    refreshConnect();
+  });
 
   const applyCipher = (): void => {
     try {
@@ -547,15 +594,24 @@ function wireSecrets(): void {
     event.preventDefault();
     event.stopPropagation();
     forget();
+    useShippedBindKey(true);
     for (const input of [dom.cipherKey, dom.cipherIv, dom.key]) input.value = "";
+    // Back to whatever the build supplies, rather than to nothing: forgetting is about the values that
+    // were typed here, and a build that carries its own still does after they are gone.
+    fill();
+    dom.keyBuiltin.checked = usingShippedBindKey();
+    ownKey();
     dom.secrets.open = true;
+    applyCipher();
     refreshConnect();
     log("the stored constants were forgotten");
   });
 
   applyCipher();
   refreshConnect();
-  dom.secrets.open = !(stored.cipherKey && stored.cipherIv && stored.bindKey);
+  // Opened when the app cannot get past the handshake as it stands, which is the only reason to make
+  // somebody look at this block at all.
+  dom.secrets.open = dom.connect.disabled;
 }
 
 /** Bootstrap. Called once, from `main.ts`. */

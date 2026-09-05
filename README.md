@@ -98,7 +98,7 @@ $ curl -N --unix-socket /run/heliobridge.sock -X POST \
 ```
 
 Paste that value into **Key presented on connecting**. Where a build carries a key of its own, untick
-**Use app default key** first — that field is what the checkbox is offering an alternative to.
+**Use default handshake key** first — that field is what the checkbox is offering an alternative to.
 
 Two limits on this route:
 
@@ -117,8 +117,9 @@ confirmed to have arrived.
 The other way round the problem: rather than finding out what key a device expects, give it back the one
 every device leaves the factory with. **Hold the IoT button for 3 to 10 seconds** — around five is a
 comfortable middle — and the datalogger writes the default key into register 54. That is the value the app
-offers as **Use app default key**, so after the press, that box is all that is needed. That option appears
-only in a build that was given the default key; where it is absent, paste the key into the field instead.
+offers as **Use default handshake key**, so after the press, that box is all that is needed. That option
+appears only in a build that was given the default key; where it is absent, paste the key into the field
+instead.
 
 The press is not a factory reset and does not touch the Wi-Fi credentials or where the device reports.
 
