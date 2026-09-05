@@ -48,7 +48,17 @@ h1 {
   border: 1px solid var(--warn-line);
   border-radius: 6px;
   background: var(--warn-bg);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+}
+
+/*
+ * The fine print, in the same box as the claim it qualifies. Set apart by the gap above it rather than by
+ * size or colour: it takes the box's own size, and staying that colour is deliberate — the box has a tinted
+ * background, and muted text on that fails contrast in the dark theme.
+ */
+.disclaimer {
+  display: block;
+  margin-top: 0.5rem;
 }
 
 button {

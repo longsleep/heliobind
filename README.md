@@ -29,9 +29,25 @@ be staged and read back before it is committed.
 > elsewhere. It is also the only way back: recovering a device that was pointed at the wrong network means
 > standing next to it with this page open.
 
-> **A personal weekend project, built with heavy AI assistance.** It runs against exactly one device — the
-> author's — and it is written to be honest about what has actually been observed rather than to be a
-> product. Treat it accordingly. It is not affiliated with or endorsed by Growatt.
+> **An independent, unofficial "Feierabend" project, built with heavy AI assistance.** It runs against
+> exactly one device — the author's — and it is written to be honest about what has actually been observed
+> rather than to be a product. Treat it accordingly. It is not affiliated with or endorsed by Growatt.
+
+## Use Heliobind
+
+**→ [longsleep.github.io/heliobind](https://longsleep.github.io/heliobind/)**
+
+That link is the app itself, served from this repository. Open the page in Chrome or Edge and Heliobind
+runs: nothing to download, nothing to build, no account to make. The page is published from a tag rather
+than from the tip of `main`, so what is served is a release.
+
+**Install Heliobind and it needs no network.** The whole app is cached on the first visit and starts from
+that cache. That is what makes it usable where the hardware is: the Wi-Fi a device is being joined to is,
+by definition, one the device cannot reach yet.
+
+Chrome offers the install in the address bar, or under ⋮ → Cast, save and share → Install page as app.
+
+Heliobind cannot reach a device until the three constants below are entered. The app does not ship them.
 
 ## Requirements
 
