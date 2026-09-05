@@ -83,6 +83,49 @@ declines to remove for everyone else.
 > network requests at all, which its content security policy enforces rather than promises. On a shared
 > machine, use **Forget these**.
 
+### Reading the handshake key from the device itself
+
+One of the three does not have to come out of the vendor's application. The handshake key is a
+configuration parameter — register **54**, `ble_handshake_key` — and a device will report it to anything
+already authenticated with it. If you run [heliobridge](https://github.com/longsleep/heliobridge), its
+control API will ask for you:
+
+```console
+$ curl -N --unix-socket /run/heliobridge.sock -X POST \
+    "http://local/devices/$SERIAL/config/read?registers=ble_handshake_key"
+{"register":54,"name":"ble_handshake_key","role":"identity","value":"…"}
+{"requested":1,"answered":1,"silent":[]}
+```
+
+Paste that value into **Key presented on connecting**. Where a build carries a key of its own, untick
+**Use app default key** first — that field is what the checkbox is offering an alternative to.
+
+Two limits on this route:
+
+- **It reads what your device expects, which is not always the default.** Register 54 is storage, and can
+  hold a key that was written into it — which is why heliobridge classifies it as identity rather than as
+  a shared constant. The default is common to every device and can be put back; see below.
+- **It is only the handshake key.** The cipher key and IV are not stored on the device — they belong to
+  the protocol rather than to any one datalogger — so no register read returns them.
+
+It also needs heliobridge already speaking to the device over the network, which is its own setup. The
+sequence is worth knowing anyway: heliobridge is how a device that has been pointed somewhere new is
+confirmed to have arrived.
+
+### Restoring the default key with the IoT button
+
+The other way round the problem: rather than finding out what key a device expects, give it back the one
+every device leaves the factory with. **Hold the IoT button for 3 to 10 seconds** — around five is a
+comfortable middle — and the datalogger writes the default key into register 54. That is the value the app
+offers as **Use app default key**, so after the press, that box is all that is needed. That option appears
+only in a build that was given the default key; where it is absent, paste the key into the field instead.
+
+The press is not a factory reset and does not touch the Wi-Fi credentials or where the device reports.
+
+> ⚠ **Do not hold it past ten seconds.** Above that is a different band that reaches a factory-reset
+> routine, and what it clears has not been established. Between two and three seconds nothing happens at
+> all, and under two seconds the button restarts the radio instead.
+
 ## Running it
 
 The quickest way, if you have [Bun](https://bun.com):
