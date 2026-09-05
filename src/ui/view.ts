@@ -39,6 +39,10 @@ export const dom = {
   configure: el<HTMLDetailsElement>("configure"),
   groups: el("groups"),
   restart: el<HTMLButtonElement>("restart"),
+  restartAfter: el<HTMLInputElement>("restart-after"),
+  linkRouter: el("link-router"),
+  linkServer: el("link-server"),
+  linkNote: el("link-note"),
   linkStatus: el<HTMLButtonElement>("link-status"),
   writeParam: el<HTMLSelectElement>("write-param"),
   writeValue: el<HTMLInputElement>("write-value"),
@@ -207,19 +211,31 @@ export function renderGroups(
     fieldset.append(summary);
 
     for (const param of group.params) {
-      const label = document.createElement("label");
-      label.textContent = `${param.number} — ${param.name}`;
-      label.htmlFor = fieldId(group, param);
-      label.title = param.summary;
       const input = document.createElement("input");
       input.id = fieldId(group, param);
-      input.type = "text";
-      input.autocomplete = "off";
-      input.spellcheck = false;
       input.dataset.param = String(param.number);
       // Nothing is editable before a read, for the same reason the write button is not.
       input.disabled = true;
-      fieldset.append(label, input);
+
+      const label = document.createElement("label");
+      label.htmlFor = fieldId(group, param);
+      label.title = param.summary;
+
+      if (param.toggle) {
+        // The box inside its own label, so the words are part of the target: a flag is easier to tick by
+        // its text than by a box the size of a fingernail. The number stays visible, as it is on every
+        // other row, because a parameter is identified here by its number before its name.
+        input.type = "checkbox";
+        label.className = "flag";
+        label.append(input, document.createTextNode(`${param.number} — ${param.toggle.label}`));
+        fieldset.append(label);
+      } else {
+        input.type = "text";
+        input.autocomplete = "off";
+        input.spellcheck = false;
+        label.textContent = `${param.number} — ${param.name}`;
+        fieldset.append(label, input);
+      }
     }
 
     const actions = document.createElement("div");
@@ -244,6 +260,60 @@ export function renderGroups(
 /** The input carrying one parameter of one group. */
 export function groupField(group: Group, param: Param): HTMLInputElement | null {
   return document.getElementById(fieldId(group, param)) as HTMLInputElement | null;
+}
+
+/**
+ * What a field holds, in the form the device takes it.
+ *
+ * A checkbox has no value of its own worth sending — `on` is what the browser calls a ticked box, not what
+ * the device calls one — so the parameter's own two values answer for it.
+ */
+export function fieldValue(param: Param, field: HTMLInputElement): string {
+  if (!param.toggle) return field.value;
+  return field.checked ? param.toggle.on : param.toggle.off;
+}
+
+/**
+ * Show a value the device sent.
+ *
+ * A flag holding neither of its two values shows as unticked, which is a guess — but the alternative is a
+ * control with no state at all, and the diff before a write still names what it would send. Both of a
+ * flag's values are documented, so a third is a discovery worth seeing in the readings pane beside it.
+ */
+export function showValue(param: Param, field: HTMLInputElement, value: string): void {
+  if (param.toggle) {
+    field.checked = value === param.toggle.on;
+  } else {
+    field.value = value;
+  }
+}
+
+/**
+ * What one of the device's two connection statuses means, in words.
+ *
+ * The values a parameter's own labels name are the ones that mean it worked. Anything else is a failure
+ * whose meaning is not established here, so it is reported as a code rather than dressed up as an
+ * explanation — "not joined (code 5)" is the whole of what is known, and reads as such.
+ */
+export function linkState(param: Param, value: string | undefined): string {
+  const known = param.labels ?? {};
+  // The positive word, taken from the labels rather than written twice. Every value a status parameter
+  // labels is a success — the failures are the unlabelled ones.
+  const worked = Object.values(known)[0] ?? "reported";
+  if (value === undefined || value === "") return "no answer";
+  return known[value] ?? `not ${worked} (code ${value})`;
+}
+
+/** Show what the device answered about its two connections. */
+export function showLinks(router: string, server: string): void {
+  dom.linkRouter.textContent = router;
+  dom.linkServer.textContent = server;
+}
+
+/** Say why an answer might not mean what it appears to, or clear the remark. */
+export function noteLinks(text: string | null): void {
+  dom.linkNote.textContent = text ?? "";
+  dom.linkNote.hidden = text === null;
 }
 
 /** Let a group be edited and written, once it has been read. */

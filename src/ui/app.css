@@ -120,6 +120,27 @@ label {
   font-weight: 600;
 }
 
+/*
+ * A checkbox and the words that say what ticking it does, on one line, both inside the label so the text is
+ * part of the target. Not bold and not stacked, unlike every other label here: a heading above a field is
+ * useful, a heading above a checkbox strands the box on a row of its own and doubles the height of a control
+ * that is one glyph tall.
+ */
+.flag {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+}
+
+.flag input {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 dl {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -135,6 +156,20 @@ dt {
 dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/*
+ * The device's own two answers, tighter and quieter than the identity list at the top of the page: this one
+ * sits inside a section rather than heading one. The answers themselves are emphasised because they are
+ * what the section is for — everything above them is how you change what they say.
+ */
+.links {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.links dd {
+  font-weight: 600;
 }
 
 pre {
@@ -394,6 +429,21 @@ pre:empty::before {
 
 .pane-heading label {
   margin: 0;
+}
+
+/* The words in a heading row that has nothing to label, and so has no `label` to carry the weight. */
+.pane-title {
+  font-weight: 600;
+}
+
+/*
+ * The line between changing something and seeing what the device made of it. A section boundary rather than
+ * decoration: what is under it is the only thing on the page the device says rather than is told.
+ */
+.divider {
+  margin: 1.25rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
 }
 
 /*

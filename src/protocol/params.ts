@@ -31,6 +31,19 @@ export interface Param {
    * device knows and this app does not is still worth reading, so an unlisted value is never an error.
    */
   readonly labels?: Readonly<Record<string, string>>;
+  /**
+   * The two values this parameter takes, for the ones that are a flag rather than a field.
+   *
+   * Present means it is offered as a checkbox. The polarity lives here, beside the parameter, rather than
+   * in the interface: `on` is what a ticked box writes and `off` what an empty one does, so a parameter
+   * whose name is a negative — `dhcp_disabled` — cannot pick up an inversion on its way to the screen.
+   */
+  readonly toggle?: {
+    readonly on: string;
+    readonly off: string;
+    /** What ticking the box does, in the words of somebody deciding whether to. */
+    readonly label: string;
+  };
 }
 
 /** Shorthand for a parameter nothing may write, which is most of them. */
@@ -57,8 +70,17 @@ function writable(
   confidence: Param["confidence"],
   summary: string,
   labels?: Param["labels"],
+  toggle?: Param["toggle"],
 ): Param {
-  return { number, name, summary, writable: true, confidence, ...(labels && { labels }) };
+  return {
+    number,
+    name,
+    summary,
+    writable: true,
+    confidence,
+    ...(labels && { labels }),
+    ...(toggle && { toggle }),
+  };
 }
 
 // What the device is.
@@ -214,6 +236,7 @@ export const DHCP_DISABLED = writable(
   "vendor-app",
   '"1" disables DHCP and uses 14/25/26; "0" leaves DHCP in charge. Written first in its group, ahead of the addresses that only matter once it is set.',
   { "0": "DHCP", "1": "static" },
+  { on: "1", off: "0", label: "use the static address below instead of DHCP" },
 );
 
 // Five fields shaped like a MAC, address, mask, gateway and resolver, each equal to the factory default of
@@ -477,8 +500,8 @@ export function isWritable(number: number): boolean {
 /**
  * Every parameter this app will write, in the order a control offers them.
  *
- * One entry today. The list exists so that the answer to "what can this app change?" is a list somebody
- * can read, rather than a search through the table for a flag.
+ * The list exists so that the answer to "what can this app change?" is a list somebody can read, rather
+ * than a search through the table for a flag.
  */
 export const WRITABLE: readonly Param[] = PARAMS.filter((param) => param.writable);
 
@@ -503,6 +526,14 @@ export interface Group {
   readonly params: readonly Param[];
   /** Whether getting this wrong can leave the device unreachable over the network. */
   readonly disruptive: boolean;
+  /**
+   * Whether the datalogger has to restart before a write here does anything.
+   *
+   * True for everything the device reads once at start-up, which is all of the network configuration: the
+   * value is stored immediately and ignored until the next boot. A group where it is false takes effect as
+   * it is written, and offering to restart for it would be theatre.
+   */
+  readonly restartToApply: boolean;
 }
 
 export const WIFI_GROUP: Group = {
@@ -512,6 +543,7 @@ export const WIFI_GROUP: Group = {
     "The network the device joins. Both fields go in one frame: a name without its passphrase is a device on no network. Recovery is another Bluetooth session — this one.",
   params: [WIFI_SSID, WIFI_PASSWORD],
   disruptive: true,
+  restartToApply: true,
 };
 
 export const ADDRESSING_GROUP: Group = {
@@ -521,6 +553,7 @@ export const ADDRESSING_GROUP: Group = {
     'DHCP or a static address. The flag leads, then the address, gateway and mask it selects between. Setting the flag to "1" without an address that works on this network is the most effective way to lose the device.',
   params: [DHCP_DISABLED, STATIC_NETWORK_IP, STATIC_NETWORK_GATEWAY, STATIC_NETWORK_MASK, DNS_IP],
   disruptive: true,
+  restartToApply: true,
 };
 
 export const SERVER_GROUP: Group = {
@@ -530,9 +563,24 @@ export const SERVER_GROUP: Group = {
     "Where the device reports. 17 and 19 are one setting, so both are written — the vendor's client blanks whichever it is not using, which leaves no stale value for the next writer to inherit.",
   params: [REMOTE_URL, SERVER_ADDRESS, REMOTE_PORT],
   disruptive: true,
+  restartToApply: true,
 };
 
 export const GROUPS: readonly Group[] = [WIFI_GROUP, ADDRESSING_GROUP, SERVER_GROUP];
+
+/**
+ * Writable settings that no group and no button already offers, and so need a field of their own.
+ *
+ * Derived rather than listed. A setting that joins a group leaves here by itself, which is what stops the
+ * same value being offered in two places that can disagree about what it currently holds — the single field
+ * writes one parameter and knows nothing of the frame its neighbours belong in.
+ *
+ * The accessory list is all that is left: the network configuration is grouped, and the restart is a button
+ * rather than a value to type.
+ */
+export const WRITABLE_ALONE: readonly Param[] = WRITABLE.filter(
+  (param) => param !== RESTART && !GROUPS.some((group) => group.params.includes(param)),
+);
 
 /**
  * What the device says about its own two links.

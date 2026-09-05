@@ -216,22 +216,30 @@ established meaning is shown as it arrived.
 
 ## Safety
 
-**Nothing here writes to the device.** That is deliberate rather than incidental: the parameters that carry
-Wi-Fi credentials are known, and writing them wrongly takes the device off the network. Recovery means
-provisioning it again, and until this app can do that reliably, the recovery path is the vendor app. Reads
-prove the framing, the cipher and the checksum end to end while being unable to change anything, so reads
-come first.
+**It writes, and only what is on a list.** `Device.write` refuses any parameter absent from the allowlist in
+`src/protocol/params.ts` before a frame is built — an unlisted parameter is not a write the device turns
+down, it is a write that never leaves the browser. On the list: the Wi-Fi credentials, the addressing, the
+server endpoint, the restart command and the accessory list. The rest of the space is read-only.
 
-When writes do arrive they will be gated, will name the parameter and value before sending, and will start
-with the server address rather than the credentials — a wrong server address is recoverable over Bluetooth,
-a wrong network name is not.
+**The factory reset is deliberately not on it.** It clears the Wi-Fi credentials, and unlike a wrong network
+name or a wrong server address, that is not something a visit with this page can undo.
+
+A group is read before it can be written, a write carries only the fields that differ from what was read,
+and the group is read back afterwards. An acknowledgement means only that the frame was understood; the
+read-back is what says what was stored. Nothing takes effect until the datalogger restarts, which follows a
+write automatically unless the box offering it is unticked — untick it and the change is staged instead,
+inspectable, and committed later by the restart button.
+
+> ⚠ **Only the accessory list has been written to real hardware.** The three network groups are built from
+> the write sets the vendor's own app uses, and have not been exercised on a device.
 
 ## Privacy
 
 The page makes no network requests. Its content security policy sets `connect-src 'none'`, so that is
-enforced by the browser rather than promised by the author. Nothing is stored, nothing is logged, and no
-analytics are present. When the app eventually asks for a Wi-Fi passphrase, that passphrase goes to the
-device over Bluetooth and nowhere else.
+enforced by the browser rather than promised by the author. Nothing is sent anywhere and no analytics are
+present. What is kept — the three constants, and the date an install offer was last refused — stays in this
+browser's own storage, on the machine that typed it. The Wi-Fi passphrase you enter goes to the device over
+Bluetooth and nowhere else.
 
 The dependency tree is kept at nearly nothing for the same reason: a page that handles a passphrase should
 be small enough for one person to read in a sitting.

@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
+  ACCESSORY_LIST_LAN,
   batches,
   DEVICE_TYPE,
+  DHCP_DISABLED,
   everyChoice,
   everyParam,
+  GROUPS,
   HW_VERSION,
   label,
   describe as name,
@@ -12,8 +15,11 @@ import {
   PARAMS,
   PROTOCOL_VERSION,
   PROVISIONING,
+  RESTART,
   SDK_VERSION,
   SW_VERSION,
+  WRITABLE,
+  WRITABLE_ALONE,
 } from "./params.ts";
 
 describe("the parameter space", () => {
@@ -163,5 +169,72 @@ describe("batching a read", () => {
 
   test("nothing in, nothing out", () => {
     expect(batches([], 8)).toEqual([]);
+  });
+});
+
+/**
+ * That a flag offered as a checkbox writes what it says it writes.
+ *
+ * The whole risk in a checkbox is polarity. A box labelled for the reader but wired to the parameter's
+ * negative sense would tick "on" and write "off", and neither the interface nor the device would complain —
+ * the device would simply be addressed the other way round from what somebody chose.
+ */
+describe("a flag offered as a checkbox", () => {
+  test("is a parameter this app may write", () => {
+    for (const param of PARAMS) {
+      if (param.toggle) expect(param.writable).toBe(true);
+    }
+  });
+
+  test("has two distinct values, both of them explained by its labels", () => {
+    for (const param of PARAMS) {
+      if (!param.toggle) continue;
+      expect(param.toggle.on).not.toBe(param.toggle.off);
+      expect(param.labels?.[param.toggle.on]).toBeString();
+      expect(param.labels?.[param.toggle.off]).toBeString();
+    }
+  });
+
+  test("ticking the DHCP flag disables DHCP, as its name says", () => {
+    expect(DHCP_DISABLED.toggle?.on).toBe("1");
+    expect(DHCP_DISABLED.toggle?.off).toBe("0");
+    expect(DHCP_DISABLED.labels?.["1"]).toBe("static");
+  });
+});
+
+/**
+ * That the single-setting field offers what nothing else does, and only that.
+ *
+ * Offering a grouped parameter there as well would be a way to write half a group — a network name with no
+ * passphrase, a static address with no flag selecting it — which is exactly what the groups exist to make
+ * impossible.
+ */
+describe("the settings written one at a time", () => {
+  test("leave out everything a group already carries", () => {
+    const grouped = new Set(GROUPS.flatMap((group) => group.params.map((param) => param.number)));
+    for (const param of WRITABLE_ALONE) {
+      expect(grouped.has(param.number)).toBe(false);
+    }
+  });
+
+  test("leave out the restart, which is a button rather than a value", () => {
+    expect(WRITABLE_ALONE).not.toContain(RESTART);
+  });
+
+  test("are the accessory list, and nothing else", () => {
+    expect(WRITABLE_ALONE).toEqual([ACCESSORY_LIST_LAN]);
+  });
+
+  test("account for every writable parameter between them", () => {
+    const offered = new Set([
+      ...WRITABLE_ALONE.map((param) => param.number),
+      ...GROUPS.flatMap((group) => group.params.map((param) => param.number)),
+      RESTART.number,
+    ]);
+    // Nothing writable may be unreachable from the interface: a parameter on the allowlist that no control
+    // offers is a permission granted to nobody, and a sign the two lists have drifted.
+    for (const param of WRITABLE) {
+      expect(offered.has(param.number)).toBe(true);
+    }
   });
 });

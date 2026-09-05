@@ -220,14 +220,15 @@
           </div>
 
           <!--
-            Writing is behind a fold, and offers only what the app is allowed to write. The device has no
-            undo, so the affordance is deliberately not as easy to reach as a read.
+            The writable settings that no group covers, written one at a time. Behind a fold because the
+            device has no undo, so the affordance is deliberately not as easy to reach as a read.
           -->
           <details id="writer" class="writer">
-            <summary>Change a setting</summary>
+            <summary>Change a single setting</summary>
             <p class="caution">
-              The device accepts a value that makes it unreachable as readily as any other, and has no undo.
-              Only settings this app knows to be recoverable are offered.
+              One parameter, one frame. Everything that decides whether the device can be reached at all is in
+              the network configuration below instead, where each field is written together with the ones it
+              depends on.
             </p>
             <label for="write-param">Setting</label>
             <select id="write-param"></select>
@@ -250,11 +251,42 @@
               way back from all of them, which is why they are here rather than nowhere — but the way back
               means standing next to the device.
             </p>
+            <!--
+              Ahead of the groups because it governs every one of them, and ticked by default because none
+              of them do anything until the datalogger restarts — a change that silently has not happened
+              yet is worse than a reboot nobody asked for. Still a choice, so a change can be staged,
+              inspected, and committed later by the button below.
+            -->
+            <label class="flag" for="restart-after">
+              <input id="restart-after" type="checkbox" checked>
+              restart the datalogger after a write, so the change takes effect
+            </label>
+
             <div id="groups"></div>
+
             <div class="actions">
-              <button id="restart" type="button">Restart the datalogger</button>
-              <button id="link-status" type="button">Check both links</button>
+              <button id="restart" type="button">Restart now</button>
             </div>
+
+            <!--
+              Below the line: everything above changes what the device holds, everything under it is the
+              device's account of itself. Not a test this page performs — the browser is not on that network
+              and its own policy forbids it any request at all — but the datalogger's two answers are the
+              only confirmation a change worked, short of the device turning up somewhere.
+            -->
+            <hr class="divider">
+
+            <div class="pane-heading">
+              <span class="pane-title">What the device reports</span>
+              <button id="link-status" class="clear" type="button">Refresh</button>
+            </div>
+            <dl id="links" class="links">
+              <dt>Wi-Fi network</dt>
+              <dd id="link-router">not asked yet</dd>
+              <dt>Server</dt>
+              <dd id="link-server">not asked yet</dd>
+            </dl>
+            <p id="link-note" class="caution" hidden></p>
           </details>
         </div>
 

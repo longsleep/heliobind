@@ -24,7 +24,7 @@ import {
   type Param,
   PROVISIONING,
   RESTART,
-  WRITABLE,
+  WRITABLE_ALONE,
 } from "../protocol/params.ts";
 import { accepted } from "../protocol/response.ts";
 import { install, offerInstall } from "../pwa.ts";
@@ -37,14 +37,19 @@ import {
   clearResult,
   describeError,
   dom,
+  fieldValue,
   fillParameters,
   fillWritable,
   groupField,
   groupReadable,
+  linkState,
   log,
+  noteLinks,
   renderGroups,
   renderReading,
   setStatus,
+  showLinks,
+  showValue,
   visibility,
   whileBusy,
 } from "./view.ts";
@@ -63,6 +68,12 @@ const BUILD: string = typeof __BUILD_REF__ === "undefined" ? "development" : __B
 
 let connection: Connection | null = null;
 let device: Device | null = null;
+
+/** How long after a restart an unpromising pair of statuses still means "not yet". */
+const SETTLING_SECONDS = 60;
+
+/** When a restart was last sent, so an answer taken too soon can say so. */
+let restartedAt: number | null = null;
 
 /**
  * Choose a device, connect, and authenticate.
@@ -91,6 +102,9 @@ async function connect(): Promise<void> {
     log(`authenticated; the device reports serial ${device.serial}`);
     visibility.readout(true);
     appendResult("Authenticated. Reads should now be answered.");
+    // Where the device stands, before anything is changed: on connecting, "did my last change work?" is
+    // the question already in the room. It never throws, so a failure here cannot look like a bad key.
+    await checkLinks();
   } catch (error) {
     // Worth distinguishing: a refusal means the frame was understood and only the key was wrong.
     setStatus(error instanceof AuthenticationError ? "key refused" : "not connected");
@@ -265,7 +279,7 @@ async function readGroup(group: Group): Promise<void> {
         const field = groupField(group, param);
         // A parameter the device did not answer for is left empty rather than filled with a guess, and an
         // empty field written back is an empty value — which is a legitimate setting here, not a mistake.
-        if (field) field.value = values.get(param.number) ?? "";
+        if (field) showValue(param, field, values.get(param.number) ?? "");
         appendResult(
           `${describe(param.number).padEnd(22)} ${renderReading(param.number, values.get(param.number) ?? "")}`,
         );
@@ -288,11 +302,15 @@ async function writeGroup(group: Group): Promise<void> {
     return;
   }
 
+  // A checkbox has no empty state, so a flag the device did not answer for reads as its `off` value and
+  // counts as a change. That is a write nobody typed, which is why the confirmation below lists every entry
+  // by name: it is visible before it goes, rather than surprising afterwards.
   const edits = group.params
     .map((param) => ({ param, field: groupField(group, param) }))
     .filter((entry): entry is { param: Param; field: HTMLInputElement } => entry.field !== null)
-    .filter((entry) => entry.field.value !== (before.get(entry.param.number) ?? ""))
-    .map((entry) => ({ param: entry.param.number, value: entry.field.value }));
+    .map((entry) => ({ param: entry.param, value: fieldValue(entry.param, entry.field) }))
+    .filter((entry) => entry.value !== (before.get(entry.param.number) ?? ""))
+    .map((entry) => ({ param: entry.param.number, value: entry.value }));
 
   if (edits.length === 0) {
     appendResult(`${group.title}: nothing changed, so nothing sent`);
@@ -304,12 +322,19 @@ async function writeGroup(group: Group): Promise<void> {
   const summary = edits
     .map((edit) => `${describe(edit.param)} = ${edit.value === "" ? "(empty)" : edit.value}`)
     .join("\n");
-  if (group.disruptive && !confirm(`Write ${group.title}?\n\n${summary}\n\nBluetooth is the way back.`)) {
+  const restarting = group.restartToApply && dom.restartAfter.checked;
+  const then = restarting
+    ? "\n\nThe datalogger restarts straight afterwards, so this takes effect."
+    : "\n\nThis takes effect when the datalogger next restarts.";
+  if (
+    group.disruptive &&
+    !confirm(`Write ${group.title}?\n\n${summary}\n\nBluetooth is the way back.${then}`)
+  ) {
     appendResult(`${group.title}: not written`);
     return;
   }
 
-  await whileBusy([dom.restart, dom.linkStatus], async () => {
+  const stored = await whileBusy([dom.restart, dom.linkStatus], async () => {
     try {
       const answer = await session.write(edits);
       appendResult(
@@ -318,34 +343,65 @@ async function writeGroup(group: Group): Promise<void> {
           : `${group.title}: refused, status ${answer.status}`,
       );
       log(`wrote ${group.key}: ${edits.map((edit) => edit.param).join(", ")}, status ${answer.status}`);
+      return accepted(answer);
     } catch (error) {
       appendResult(`${group.title}: write failed: ${reasonOf(error)}`);
-      return;
+      return false;
     }
   });
+
   // Whatever it now holds, which is the only answer worth having — and it refreshes the baseline, so a
-  // second write sends only what changed since this read.
+  // second write sends only what changed since this read. Read back even after a refusal: what the device
+  // rejected it may also have partly taken, and a stale baseline is how the next write compounds that.
   await readGroup(group);
-  appendResult(`${group.title}: restart the datalogger for it to take effect`);
+  if (!stored) return;
+
+  if (restarting) {
+    await sendRestart();
+  } else if (group.restartToApply) {
+    appendResult(`${group.title}: restart the datalogger for it to take effect`);
+  }
 }
 
-/** Restart the datalogger, which is how a staged change is committed. */
-async function restartDatalogger(): Promise<void> {
+/**
+ * Send the restart.
+ *
+ * No prompt of its own: the caller decides whether one is owed. A write that has just been confirmed said
+ * a restart would follow, and asking twice for one decision trains people to click through both.
+ */
+async function sendRestart(): Promise<void> {
   const session = device;
   if (!session) return;
+  await whileBusy([dom.restart], async () => {
+    try {
+      const answer = await session.write([{ param: RESTART.number, value: "1" }]);
+      if (accepted(answer)) {
+        restartedAt = Date.now();
+        appendResult("restart accepted");
+        // Rather than reading the two statuses now, which is the one moment they are guaranteed to be
+        // wrong: the device is rebooting, and this connection is going with it.
+        showLinks("not asked yet", "not asked yet");
+        noteLinks(
+          "Restarting. Reconnect when it comes back and ask again — that answer is the one that says whether the change worked.",
+        );
+      } else {
+        appendResult(`restart refused, status ${answer.status}`);
+      }
+    } catch (error) {
+      appendResult(`restart failed: ${reasonOf(error)}`);
+    }
+  });
+}
+
+/** Restart the datalogger on request, which is how a change staged earlier is committed. */
+async function restartDatalogger(): Promise<void> {
+  if (!device) return;
   if (
     !confirm("Restart the datalogger?\n\nIt reboots and reconnects by itself; telemetry pauses meanwhile.")
   ) {
     return;
   }
-  await whileBusy([dom.restart], async () => {
-    try {
-      const answer = await session.write([{ param: RESTART.number, value: "1" }]);
-      appendResult(accepted(answer) ? "restart accepted" : `restart refused, status ${answer.status}`);
-    } catch (error) {
-      appendResult(`restart failed: ${reasonOf(error)}`);
-    }
-  });
+  await sendRestart();
 }
 
 /**
@@ -361,16 +417,35 @@ async function checkLinks(): Promise<void> {
   await whileBusy([dom.linkStatus], async () => {
     try {
       const answer = await session.read(LINK_STATUS.map((param) => param.number));
-      for (const param of LINK_STATUS) {
-        const value = answer.values.find((entry) => entry.param === param.number);
-        appendResult(
-          `${describe(param.number).padEnd(22)} ${value ? renderReading(param.number, value.value) : "(no answer)"}`,
-        );
+      const held = (param: Param): string | undefined =>
+        answer.values.find((entry) => entry.param === param.number)?.value;
+      const [router, server] = LINK_STATUS;
+      if (router && server) {
+        showLinks(linkState(router, held(router)), linkState(server, held(server)));
       }
+      noteLinks(tooSoon());
+      // The codes go to the log rather than the readings pane. They are the evidence behind the two rows
+      // above, and having read them there once is what made this control confusing in the first place.
+      log(`links: ${LINK_STATUS.map((param) => `${param.number}=${held(param) ?? "-"}`).join(" ")}`);
     } catch (error) {
-      appendResult(`could not read the link status: ${reasonOf(error)}`);
+      showLinks("could not be read", "could not be read");
+      noteLinks(reasonOf(error));
     }
   });
+}
+
+/**
+ * The remark owed to an answer taken too soon after a restart, if one is.
+ *
+ * A datalogger that has just rebooted has not had time to join anything, so a discouraging pair of rows
+ * means "not yet" rather than "no". Worth saying explicitly: the alternative is somebody undoing a change
+ * that was working, seconds before it would have shown.
+ */
+function tooSoon(): string | null {
+  if (restartedAt === null) return null;
+  const seconds = Math.round((Date.now() - restartedAt) / 1000);
+  if (seconds > SETTLING_SECONDS) return null;
+  return `Asked ${seconds}s after a restart. Both connections take a while to come up, so "not yet" is the expected answer for about a minute.`;
 }
 
 /** Read the informational characteristic: no framing, no cipher, no checksum. A transport check. */
@@ -501,7 +576,7 @@ export function start(): void {
   installOffer();
 
   fillParameters(everyChoice());
-  fillWritable(WRITABLE);
+  fillWritable(WRITABLE_ALONE);
   wireSecrets();
   visibility.ready();
 
