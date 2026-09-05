@@ -380,6 +380,15 @@ pre:empty::before {
   opacity: 1;
 }
 
+/*
+ * Collapsed, the constants block is a heading and nothing else — so the button that empties three fields
+ * nobody can see goes with them. `display: none` rather than hiding it visually: while the fields are out
+ * of reach the action is not one to offer, to a pointer or to a screen reader.
+ */
+.secrets:not([open]) .clear {
+  display: none;
+}
+
 /* An attribute selector already outranks the type selectors above, so this needs no !important. */
 [hidden] {
   display: none;
