@@ -91,6 +91,19 @@
         <button id="update-now" type="button">Update</button>
       </div>
 
+      <!--
+        Shown when the browser reports the app installable, unless it was refused within the last month.
+        Installed, Heliobind starts from its own cache and needs no network — which is the state it is meant
+        to be used in, so the offer is made here rather than left to the address bar.
+      -->
+      <div id="offer" class="update" hidden>
+        <span>Install Heliobind and it works with no network.</span>
+        <span class="offer-actions">
+          <button id="offer-install" type="button">Install</button>
+          <button id="offer-later" class="clear" type="button">Not now</button>
+        </span>
+      </div>
+
       <p id="unsupported" hidden>
         This browser cannot use Bluetooth from a web page. Chrome or Edge can, on Android, Windows, macOS and
         ChromeOS. On <strong>Linux</strong> it ships disabled: enable

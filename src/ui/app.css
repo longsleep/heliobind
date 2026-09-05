@@ -320,6 +320,17 @@ pre:empty::before {
 }
 
 /*
+ * Two buttons at the right-hand end of a bar built for one. Without a wrapper `space-between` would put the
+ * text, the accept and the refusal at three separate places along the row, which reads as three unrelated
+ * things rather than one question.
+ */
+.offer-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+}
+
+/*
  * A pane's label and the button that empties it, on one line.
  *
  * `align-items: center` rather than `baseline`: baseline lines up the text, which pushes a bordered button

@@ -27,8 +27,8 @@ import {
   WRITABLE,
 } from "../protocol/params.ts";
 import { accepted } from "../protocol/response.ts";
-import { install } from "../pwa.ts";
-import { forget, load, save } from "../settings.ts";
+import { install, offerInstall } from "../pwa.ts";
+import { forget, load, mayOfferInstall, refuseInstall, save } from "../settings.ts";
 import { Connection, choose, isSupported } from "../transport/ble.ts";
 import {
   appendResult,
@@ -411,6 +411,31 @@ function offlineAndUpdates(): void {
 }
 
 /**
+ * Offer to install, once the browser reports that it can.
+ *
+ * Whether to *show* the offer is decided here rather than in `pwa.ts`: that module knows about the browser
+ * and deliberately nothing about how often it is polite to ask. Both refusals — the bar's own Not now and a
+ * dismissal of the browser's dialog — are recorded the same way, so either silences it for a month.
+ */
+function installOffer(): void {
+  offerInstall({
+    show: () => {
+      if (mayOfferInstall(Date.now())) dom.offer.hidden = false;
+    },
+    hide: () => {
+      dom.offer.hidden = true;
+    },
+    onAccept: (take) => dom.install.addEventListener("click", take),
+    declined: () => refuseInstall(Date.now()),
+  });
+
+  dom.installLater.addEventListener("click", () => {
+    refuseInstall(Date.now());
+    dom.offer.hidden = true;
+  });
+}
+
+/**
  * Load the supplied constants, keep them stored as they are edited, and hand the cipher its two.
  *
  * Opened automatically when anything is missing, because the app cannot do a single useful thing until all
@@ -470,6 +495,10 @@ export function start(): void {
     visibility.unsupported();
     return;
   }
+
+  // After the check above, deliberately: a browser that cannot reach a device over Bluetooth should not be
+  // offered an app it cannot use. Still synchronous, which is what the offer requires.
+  installOffer();
 
   fillParameters(everyChoice());
   fillWritable(WRITABLE);

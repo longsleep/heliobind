@@ -123,6 +123,59 @@ export function forget(): void {
   }
 }
 
+/**
+ * When the install offer was last refused.
+ *
+ * Kept beside the constants rather than in `pwa.ts` because this module is the one place that knows
+ * `localStorage` can refuse outright, and a second copy of that guard is a second thing to get wrong.
+ * `forget()` deliberately leaves it: clearing the constants is about values someone typed, not about a bar
+ * they waved away.
+ */
+const REFUSED_INSTALL = "heliobind.install.refused";
+
+/**
+ * How long a refusal stands.
+ *
+ * Long enough not to nag, short enough that someone who declined on a desktop is asked again on the phone
+ * they actually stand at the device with.
+ */
+export const ASK_AGAIN_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether an offer refused at `refusedAt` may be made again at `now`. Zero means it never was.
+ *
+ * Pure, and separate from the store, so the policy can be tested without a browser. A stored time in the
+ * future counts as due: the alternative is that a clock correction silences the offer permanently.
+ */
+export function dueAgain(refusedAt: number, now: number): boolean {
+  if (refusedAt <= 0 || refusedAt > now) return true;
+  return now - refusedAt >= ASK_AGAIN_AFTER_MS;
+}
+
+/** Whether the install offer may be shown, given the time now. */
+export function mayOfferInstall(now: number): boolean {
+  return dueAgain(refusedInstall(), now);
+}
+
+/** Remember that the offer was refused, so it is not repeated for a month. */
+export function refuseInstall(now: number): void {
+  try {
+    localStorage.setItem(REFUSED_INSTALL, String(now));
+  } catch {
+    // Storage unavailable. The bar is hidden for this session regardless, and asking again next time is a
+    // better failure than never asking.
+  }
+}
+
+function refusedInstall(): number {
+  try {
+    const stored = Number(localStorage.getItem(REFUSED_INSTALL));
+    return Number.isFinite(stored) ? stored : 0;
+  } catch {
+    return 0;
+  }
+}
+
 function read(field: Field): string {
   try {
     return localStorage.getItem(STORE[field]) ?? "";

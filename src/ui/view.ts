@@ -49,6 +49,9 @@ export const dom = {
   log: el<HTMLPreElement>("log"),
   update: el("update"),
   updateNow: el<HTMLButtonElement>("update-now"),
+  offer: el("offer"),
+  install: el<HTMLButtonElement>("offer-install"),
+  installLater: el<HTMLButtonElement>("offer-later"),
   build: el("build"),
 } as const;
 
