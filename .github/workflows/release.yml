@@ -1,0 +1,160 @@
+# Publish a release from a version tag.
+#
+# Order matters: nothing is published until the tag has been shown to agree with package.json and the
+# checks have passed on that exact tree.
+#
+# `npm publish` is deliberately absent, for the same reason `cargo publish` is absent from heliobridge's:
+# a publish cannot be undone and unpublishing is not retraction, so the one irreversible step stays a
+# deliberate act taken by hand.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: verify the tag and re-run the checks
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.4.0
+
+      - name: The tag must agree with package.json
+        id: version
+        run: |
+          set -euo pipefail
+          pkg=$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$pkg" != "$tag" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $pkg"
+            exit 1
+          fi
+          echo "version=$pkg" >> "$GITHUB_OUTPUT"
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun test
+
+  build:
+    name: the site
+    needs: verify
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      # `bun run build` and never `build:local`: the second compiles the constants in, which is the point
+      # when the copy is for your own phone and a disaster when the copy is an asset on a public release.
+      - name: Build
+        env:
+          BUILD_REF: ${{ github.ref_name }} (${{ github.sha }})
+        run: bun run build
+
+      - name: Archive the built site
+        run: tar czf heliobind-${{ needs.verify.outputs.version }}-site.tar.gz -C dist .
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: site
+          path: heliobind-*-site.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs: [verify, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history and every tag, so the notes can span from the previous release.
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: site
+          path: dist
+
+      # Notes from commit subjects rather than from GitHub's generator, which lists merged pull requests
+      # and would be empty for a release built from direct commits. The convention here — an imperative
+      # subject summarising the result — means a subject already reads as a release-note line.
+      - name: Notes
+        run: |
+          set -euo pipefail
+          previous=$(git tag --list 'v*' --sort=-v:refname \
+                       | grep -v -- '-' \
+                       | grep -v "^${GITHUB_REF_NAME}$" \
+                       | head -1 || true)
+          # The version-bump commit says nothing in its own release notes.
+          subjects() { git log --no-merges --reverse --pretty='- %s' "$@" | grep -v '^- Release [0-9]'; }
+          {
+            if [ -n "$previous" ]; then
+              echo "## Changes since ${previous}"
+              echo
+              subjects "${previous}..${GITHUB_REF_NAME}"
+              echo
+              echo "**Full changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${previous}...${GITHUB_REF_NAME}"
+            else
+              echo "## Changes"
+              echo
+              subjects "${GITHUB_REF_NAME}"
+            fi
+            echo
+            echo "The app runs at https://longsleep.github.io/heliobind/, which this tag has just deployed."
+            echo "The archive is the same built site, for anyone who would rather serve it themselves;"
+            echo "verify it with \`sha256sum -c SHA256SUMS\`."
+            echo
+            echo "It carries none of the three protocol constants. It asks for them, as the README explains."
+          } > dist/NOTES.md
+          cat dist/NOTES.md
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum heliobind-*-site.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Attest the archive
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/heliobind-*-site.tar.gz
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file dist/NOTES.md \
+            $prerelease \
+            dist/heliobind-*-site.tar.gz dist/SHA256SUMS
