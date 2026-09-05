@@ -1,5 +1,15 @@
+/*
+ * One palette, light, regardless of what the system asks for.
+ *
+ * `color-scheme` is what makes the browser's own furniture — scrollbars, checkboxes, focus rings — follow
+ * along, and `only` forbids the browser from overriding the choice, which is how Chrome's Auto Dark Theme
+ * is declined. Declaring either without also removing a `prefers-color-scheme: dark` block would be the
+ * worst of both: that media feature follows the system setting and does not care what the page opted into,
+ * so the tokens would go dark underneath light controls. The dark palette is in the history if it is ever
+ * wanted back.
+ */
 :root {
-  color-scheme: light dark;
+  color-scheme: only light;
   --fg: #16181d;
   --bg: #fbfbfc;
   --muted: #5c6270;
@@ -7,18 +17,6 @@
   --accent: #1f6feb;
   --warn-bg: #fff6e0;
   --warn-line: #e0b64a;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fg: #e6e8ec;
-    --bg: #14161a;
-    --muted: #9aa1ae;
-    --line: #2c313a;
-    --accent: #6aa8ff;
-    --warn-bg: #2b2413;
-    --warn-line: #6b5a26;
-  }
 }
 
 * {

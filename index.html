@@ -15,7 +15,16 @@
       build fails rather than shipping a page without it.
     -->
     <meta name="referrer" content="no-referrer">
-    <meta name="color-scheme" content="light dark">
+    <!--
+      Light, whatever the system prefers, and `only` so the browser may not override that: it is what turns
+      off Chrome's Auto Dark Theme, which force-darkens pages on Android whatever they declare. Repeated in
+      the stylesheet, but it belongs here too because this is read first — the canvas, the scrollbars and
+      the form controls come up light immediately rather than starting dark and being repainted.
+
+      `only dark` is not the mirror of this and is invalid: a document forced into a scheme it has no
+      palette for is unreadable, so the keyword exists in one direction only.
+    -->
+    <meta name="color-scheme" content="only light">
 
     <title>Heliobind — Bluetooth setup</title>
     <meta name="theme-color" content="#1f6feb">
