@@ -109,7 +109,6 @@ async function connect(): Promise<void> {
     // Worth distinguishing: a refusal means the frame was understood and only the key was wrong.
     setStatus(error instanceof AuthenticationError ? "key refused" : "not connected");
     appendResult(describeError(error));
-    log(describeError(error));
     refreshConnect();
   }
 }
@@ -196,7 +195,6 @@ async function readSet(params: readonly number[], what: string): Promise<void> {
     appendResult(
       `\n${held} held a value, ${blank} answered empty, ${absent} gave no entry, ${lost} went unanswered`,
     );
-    log(`read ${params.length} parameters: ${held} values, ${blank} empty, ${absent} absent, ${lost} lost`);
   });
 }
 
@@ -231,7 +229,6 @@ async function writeSetting(): Promise<void> {
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       appendResult(`${describe(param).padEnd(22)} write failed: ${reason}`);
-      log(`write of ${param} failed: ${reason}`);
       return;
     }
 

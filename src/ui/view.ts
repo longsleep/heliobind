@@ -132,6 +132,12 @@ export function appendResult(text: string): void {
  *
  * The element sits outside the block hidden on disconnect — the log is most valuable at exactly the moment
  * the device goes away — and it is emptied only when asked.
+ *
+ * **Traffic, not commentary.** What belongs here is the exchange in its own terms: registers, statuses,
+ * octet counts, the codes behind a verdict. What was pressed and what came of it belongs in the readings
+ * pane, in words. A message that would read the same in both panes goes in one of them — reporting a
+ * failure twice makes it look like two failures, and makes a record of the traffic harder to read for the
+ * commentary running through it.
  */
 export function log(text: string): void {
   const at = new Date().toISOString().slice(11, 23);
