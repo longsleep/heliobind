@@ -1,8 +1,10 @@
 /**
  * Capacitor, for the Android build.
  *
- * The app itself knows nothing about this. `webDir` is the same `dist/` that GitHub Pages serves, so the
- * APK wraps exactly what the website is — the build runs once and both consume its output.
+ * The app itself knows nothing about this. `webDir` is `dist-android/`, which `bun run build:android`
+ * produces: the same sources as the website, bundled under the `capacitor` condition so `#transport`
+ * resolves to the Android radio instead of the browser's. The two outputs are separate directories
+ * because they are different bundles, and because `dist/` is what npm publishes.
  *
  * `androidScheme: "https"` keeps the page in a secure context, which the Web Crypto the cipher depends on
  * requires. The default is the same; it is written out because silence here would look like an oversight
@@ -14,7 +16,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   appId: "org.longsleep.heliobind",
   appName: "Heliobind",
-  webDir: "dist",
+  webDir: "dist-android",
   android: {
     // The page is served from the APK, so there is nothing to load over the network and nothing to allow.
     allowMixedContent: false,

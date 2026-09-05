@@ -7,7 +7,7 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { choose, SERVICE, VENDOR } from "./ble.ts";
+import { choose, SERVICE, VENDOR } from "./web.ts";
 
 const original = Reflect.getOwnPropertyDescriptor(globalThis, "navigator");
 

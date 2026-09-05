@@ -37,3 +37,6 @@
 
 # Local signing key for test builds. Generated per machine, never committed.
 android/test.keystore
+
+# The Android bundle. `dist/` is the website and the npm package; this one belongs to the APK.
+dist-android/

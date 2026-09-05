@@ -11,7 +11,16 @@ import { join } from "node:path";
 import type { BunPlugin } from "bun";
 import { serviceWorker } from "./service-worker.ts";
 
-const OUT = "dist";
+/**
+ * Which transport the bundle will contain, and therefore where it goes.
+ *
+ * `--android` resolves `#transport` to the Capacitor implementation through the `capacitor` condition, and
+ * writes somewhere of its own so the two builds cannot overwrite each other. The browser build is the
+ * default in every sense: it is what a bare `bun run build` produces, what Pages serves, and what the npm
+ * package carries — `files` lists `dist` and nothing else, so Android code cannot reach the registry.
+ */
+const ANDROID = process.argv.includes("--android");
+const OUT = ANDROID ? "dist-android" : "dist";
 
 /**
  * The policy the shipped page carries.
@@ -120,6 +129,9 @@ const result = await Bun.build({
   minify: true,
   sourcemap: "none",
   plugins: [securityPolicy],
+  // The condition that decides which transport `#transport` resolves to. Nothing selects it at runtime:
+  // a browser bundle has no Capacitor in it to select.
+  conditions: ANDROID ? ["capacitor"] : [],
   // Nothing from the environment reaches the browser on its own. `substitutions` above is the only route,
   // and it carries a value only under `bun run build:local` — a build that carries the protocol constants
   // is a convenience for one phone, and a build that carries them by accident is a publication. Asking for

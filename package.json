@@ -23,6 +23,13 @@
     "pwa"
   ],
   "type": "module",
+  "//imports": "Which transport a bundle contains is decided here, not at runtime. `bun build --conditions capacitor` takes the Android one; everything else takes the browser one, so a web bundle cannot contain Capacitor and an npm publish cannot carry Android code.",
+  "imports": {
+    "#transport": {
+      "capacitor": "./src/transport/native.ts",
+      "default": "./src/transport/web.ts"
+    }
+  },
   "bin": {
     "heliobind": "./scripts/serve.ts"
   },
@@ -40,6 +47,7 @@
   "scripts": {
     "dev": "bun ./index.html",
     "build": "bun run scripts/build.ts",
+    "build:android": "bun run scripts/build.ts --android",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",

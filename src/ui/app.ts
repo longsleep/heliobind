@@ -5,6 +5,7 @@
  * `view.ts` and everything about the device to `Device`. Nothing here knows about framing, ciphers or GATT.
  */
 
+import { choose, isSupported, NATIVE, open } from "#transport";
 import { AuthenticationError, Device } from "../device.ts";
 import {
   configure as configureCipher,
@@ -40,7 +41,7 @@ import {
   useShippedBindKey,
   usingShippedBindKey,
 } from "../settings.ts";
-import { Connection, choose, isSupported } from "../transport/ble.ts";
+import type { Link } from "../transport/link.ts";
 import {
   appendResult,
   batchSize,
@@ -77,7 +78,7 @@ import {
 declare const __BUILD_REF__: string;
 const BUILD: string = typeof __BUILD_REF__ === "undefined" ? "development" : __BUILD_REF__;
 
-let connection: Connection | null = null;
+let connection: Link | null = null;
 let device: Device | null = null;
 
 /** How long after a restart an unpromising pair of statuses still means "not yet". */
@@ -95,16 +96,17 @@ let restartedAt: number | null = null;
 async function connect(): Promise<void> {
   dom.connect.disabled = true;
   try {
+    // What `choose` hands back differs by platform — an object in a browser, an identifier on Android —
+    // and this never looks inside it. It goes straight back to `open`, which is the half that knows.
     const chosen = await choose();
     visibility.device(true);
     dom.deviceName.textContent = chosen.name ?? "(unnamed)";
     setStatus("connecting");
 
-    chosen.addEventListener("gattserverdisconnected", onDisconnected);
-
-    connection = await Connection.open(chosen);
+    connection = await open(chosen);
+    connection.onDisconnected = onDisconnected;
     connection.onNotification = (data) => log(`notify ${data.length} octets`);
-    log("connected");
+    log(`connected over ${connection.describe}`);
 
     setStatus("authenticating");
     device = await Device.open(connection, bindKeyInUse());
@@ -617,7 +619,10 @@ function wireSecrets(): void {
 /** Bootstrap. Called once, from `main.ts`. */
 export function start(): void {
   dom.build.textContent = `build ${BUILD}`;
-  offlineAndUpdates();
+  // A packaged app is already installed and already offline: it has no service worker to update and no
+  // install to offer. Both are the browser's furniture, and `NATIVE` is a constant of whichever transport
+  // the build chose, so the branch is settled before it ships rather than tested on a phone.
+  if (!NATIVE) offlineAndUpdates();
 
   if (!isSupported()) {
     visibility.unsupported();
@@ -626,7 +631,7 @@ export function start(): void {
 
   // After the check above, deliberately: a browser that cannot reach a device over Bluetooth should not be
   // offered an app it cannot use. Still synchronous, which is what the offer requires.
-  installOffer();
+  if (!NATIVE) installOffer();
 
   fillParameters(everyChoice());
   fillWritable(WRITABLE_ALONE);

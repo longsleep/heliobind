@@ -12,7 +12,7 @@ import { useTestCipher } from "./protocol/cipher.fixture.ts";
 import { decryptBody, encryptBody } from "./protocol/crypto.ts";
 import { type Bytes, build, FUNCTION, parse, readU16, SERIAL_PLACEHOLDER } from "./protocol/frame.ts";
 import { ACCESSORY_LIST_LAN, FACTORY_RESET, PARAM_SPACE_LAST, WIFI_SSID } from "./protocol/params.ts";
-import type { Connection } from "./transport/ble.ts";
+import type { Link } from "./transport/link.ts";
 
 beforeAll(useTestCipher);
 
@@ -62,10 +62,14 @@ interface FakeOptions {
 }
 
 /** A device made of code, reachable through the same call the radio implements. */
-function fakeConnection(options: FakeOptions): { connection: Connection; requests: number[][] } {
+function fakeConnection(options: FakeOptions): { connection: Link; requests: number[][] } {
   const requests: number[][] = [];
   const connection = {
     connected: true,
+    // Part of the contract rather than of this fake's business: a name to show and a way to say the device
+    // went away. Neither is exercised here, where the subject is what travels over the link.
+    name: "fake",
+    onDisconnected: null,
     async request(frame: Bytes): Promise<Bytes> {
       const parsed = parse(frame);
       // The handshake writes the key; answer it as accepted with no values.
@@ -83,7 +87,7 @@ function fakeConnection(options: FakeOptions): { connection: Connection; request
         .map((param) => ({ param, value: options.holds.get(param) ?? "" }));
       return reply(responseBody(values, params.length));
     },
-  } as unknown as Connection;
+  } as unknown as Link;
   return { connection, requests };
 }
 
@@ -207,7 +211,7 @@ describe("writing a setting", () => {
         }
         return reply(responseBody([], 1));
       },
-    } as unknown as Connection;
+    } as unknown as Link;
 
     const device = await Device.open(connection, "key");
     const answer = await device.write([{ param: ACCESSORY_LIST_LAN.number, value: "CRL:" }]);
@@ -228,7 +232,7 @@ describe("writing a setting", () => {
         sent += 1;
         return reply(responseBody([], 1));
       },
-    } as unknown as Connection;
+    } as unknown as Link;
 
     const device = await Device.open(connection, "key");
     const before = sent;
@@ -244,7 +248,7 @@ describe("writing a setting", () => {
       async request(): Promise<Bytes> {
         return reply(responseBody([], 1));
       },
-    } as unknown as Connection;
+    } as unknown as Link;
 
     const device = await Device.open(connection, "key");
     // One writable parameter and one that is not: the whole frame has to go, because a partly applied

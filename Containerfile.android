@@ -21,7 +21,7 @@
 #
 # Then, for each build:
 #
-#     bun run build && bunx cap sync android
+#     bun run build:android && bunx cap sync android
 #     podman run --rm \
 #       -v "$PWD":/src \
 #       -w /src/android \

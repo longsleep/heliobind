@@ -38,10 +38,10 @@ jobs:
 
       # The same command Pages runs. Without BUILD_REF the page stamps itself "development", which is
       # accurate for an APK built off a branch.
-      - name: Build the web app
+      - name: Build the web app, with the Android transport
         env:
           BUILD_REF: ${{ github.ref_name }} (${{ github.sha }})
-        run: bun run build
+        run: bun run build:android
 
       # Copies dist/ into the Android project and refreshes its generated config. Everything it writes is
       # ignored by git, which is why it has to run here rather than being committed.

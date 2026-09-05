@@ -16,7 +16,7 @@ import { decryptBody, encryptBody } from "./protocol/crypto.ts";
 import { build, FUNCTION, parse, readConfigBody, type Tlv, writeConfigBody } from "./protocol/frame.ts";
 import { BLE_HANDSHAKE_KEY, batches, describe, everyParam, isWritable } from "./protocol/params.ts";
 import { accepted, parseResponse, type Response } from "./protocol/response.ts";
-import type { Connection, Route } from "./transport/ble.ts";
+import type { Link, Route } from "./transport/link.ts";
 
 export class DeviceError extends Error {}
 
@@ -45,7 +45,7 @@ export class AuthenticationError extends DeviceError {
 
 export class Device {
   private constructor(
-    private readonly connection: Connection,
+    private readonly connection: Link,
     /** The serial the device reported during the handshake — ten characters, its own rather than ours. */
     readonly serial: string,
   ) {}
@@ -55,7 +55,7 @@ export class Device {
    *
    * @throws {AuthenticationError} if the device refuses the key.
    */
-  static async open(connection: Connection, key: string): Promise<Device> {
+  static async open(connection: Link, key: string): Promise<Device> {
     const response = await exchange(
       connection,
       FUNCTION.writeConfig,
@@ -152,7 +152,7 @@ export class Device {
  * whole blocks and the tail is padding rather than content.
  */
 async function exchange(
-  connection: Connection,
+  connection: Link,
   fn: number,
   body: ReturnType<typeof readConfigBody>,
   route?: Route,
