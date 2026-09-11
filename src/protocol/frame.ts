@@ -53,6 +53,13 @@ export const FUNCTION = {
   writeConfig: 0x18,
   /** Read configuration parameters. Body is a list of parameter numbers. */
   readConfig: 0x19,
+  /**
+   * Carry a Modbus frame to the inverter behind the datalogger. Body is a length and a PDU.
+   *
+   * The only function here that addresses the inverter's own registers rather than the datalogger's
+   * configuration. See `modbus.ts`.
+   */
+  modbus: 0x17,
 } as const;
 
 /**
