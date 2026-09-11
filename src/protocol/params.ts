@@ -371,9 +371,10 @@ export const PARAMS: readonly Param[] = [
  * Every version the configuration space carries is here — the datalogger's firmware, the hardware
  * revision, the SDK the build was made with, and the wire protocol — since "which versions is it running"
  * is the question a support thread opens with. The vendor's six-field release string is **not** among
- * them: four of its fields are component versions held in input registers, an address space this transport
- * has no proven read for, so the firmware version reported here is the datalogger's own field of that
- * string rather than the whole of it.
+ * them: four of its fields are component versions held in input registers, which this transport reaches
+ * through the Modbus passthrough rather than through a parameter — so the firmware version reported here is
+ * the datalogger's own field of that string rather than the whole of it. `Device.componentVersions` asks
+ * for the other four.
  *
  * Deliberately not everything with a name. The ring buffer, the duplicate network fields and the assembled
  * blob are worth reading when investigating the protocol and are noise when provisioning; they stay
