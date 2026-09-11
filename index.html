@@ -109,7 +109,7 @@
         to be used in, so the offer is made here rather than left to the address bar.
       -->
       <div id="offer" class="update" hidden>
-        <span>Install Heliobind and it works with no network.</span>
+        <span>Install Heliobind to use it without a network.</span>
         <span class="offer-actions">
           <button id="offer-install" type="button">Install</button>
           <button id="offer-later" class="clear" type="button">Not now</button>
@@ -120,7 +120,7 @@
         This browser cannot use Bluetooth from a web page. Chrome or Edge can, on Android, Windows, macOS and
         ChromeOS. On <strong>Linux</strong> it ships disabled: enable
         <code>chrome://flags/#enable-experimental-web-platform-features</code>, restart the browser, and
-        reload. No browser on iOS supports it at all, whatever it is called.
+        reload. No browser on iOS supports it — they are all Safari underneath.
       </p>
 
       <section id="app" hidden>
@@ -154,8 +154,8 @@
           </summary>
           <p class="note" id="secrets-absent">
             Not distributed with this app. The cipher key and IV are sixteen characters each; the handshake
-            key is what a device is greeted with. Values entered here are used in place of anything the build
-            carries, so Reset is what gives them back.
+            key is the value a device is unlocked with, and nothing is served until it is accepted. Values
+            entered here are used in place of anything the build carries, so Reset is what gives them back.
           </p>
 
           <!--
@@ -311,8 +311,7 @@
             <summary>Change a single setting</summary>
             <p class="caution">
               One parameter, one frame. Everything that decides whether the device can be reached at all is in
-              the network configuration below instead, where each field is written together with the ones it
-              depends on.
+              Network configuration instead, where each field is written together with the ones it depends on.
             </p>
             <label for="write-param">Setting</label>
             <select id="write-param"></select>
