@@ -114,6 +114,8 @@ async function connect(): Promise<void> {
     setStatus("authenticating");
     device = await Device.open(connection, bindKeyInUse());
     dom.deviceSerial.textContent = device.serial;
+    // A version belongs to the device it was read from, so it cannot outlive the connection that read it.
+    dom.deviceVersions.textContent = "not asked yet";
     setStatus("ready");
     log(`authenticated; the device reports serial ${device.serial}`);
     visibility.readout(true);
@@ -472,6 +474,73 @@ function tooSoon(): string | null {
   return `Asked ${seconds}s after a restart. Both connections take a while to come up, so "not yet" is the expected answer for about a minute.`;
 }
 
+/**
+ * Read registers from the controller behind the datalogger.
+ *
+ * The one action here that addresses something other than the datalogger. A start it does not serve draws
+ * no reply at all rather than an error, so a failure is reported with whatever came back rather than
+ * swallowed — silence is information about the device.
+ */
+async function readRegisters(): Promise<void> {
+  const session = device;
+  if (!session) return;
+
+  const space = dom.registerSpace.value === "input" ? "input" : "holding";
+  const start = Number(dom.registerStart.value);
+  const count = Number(dom.registerCount.value);
+  if (!Number.isFinite(start) || !Number.isFinite(count)) return;
+
+  appendResult(`reading ${count} ${space} register${count === 1 ? "" : "s"} from ${start}…`);
+
+  await whileBusy([dom.registerRead], async () => {
+    try {
+      const answer = await session.readRegisters(space, start, count);
+      for (const [index, value] of answer.values.entries()) {
+        const label = `  ${space} ${start + index}`.padEnd(24);
+        appendResult(`${label}${value}  (${hex16(value)})`);
+      }
+      log(`read ${space} ${start}..${start + count - 1}: ${answer.values.join(", ")}`);
+    } catch (error) {
+      appendResult(`  read failed: ${reasonOf(error)}`);
+      log(`register read failed: ${reasonOf(error)}`);
+    }
+  });
+}
+
+/**
+ * Ask each component behind the datalogger which firmware it runs, and show the answer in the device panel.
+ *
+ * Worth a button of its own because every register meaning this app knows was read out of one particular
+ * sub-MCU image, and a device running a different one is the first thing to suspect when a reading looks
+ * wrong.
+ *
+ * The versions sit just past the edge of a served block, so silence is a plausible answer and is reported
+ * as one — "not answered" rather than an error, because it says something true about the device.
+ */
+async function readVersions(): Promise<void> {
+  const session = device;
+  if (!session) return;
+
+  await whileBusy([dom.registerVersions], async () => {
+    try {
+      const versions = await session.componentVersions();
+      const text = `inverter ${versions.inverter}, MPPT ${versions.mppt}, PD ${versions.pd}, BMS ${versions.bms}`;
+      dom.deviceVersions.textContent = text;
+      appendResult(`components: ${text}`);
+      log(`component versions: ${text}`);
+    } catch (error) {
+      dom.deviceVersions.textContent = "not answered";
+      appendResult(`component versions: ${reasonOf(error)}`);
+      log(`component versions unavailable: ${reasonOf(error)}`);
+    }
+  });
+}
+
+/** Four hex digits, for a register value whose meaning is a bit pattern rather than a number. */
+function hex16(value: number): string {
+  return `0x${value.toString(16).padStart(4, "0")}`;
+}
+
 /** Read the informational characteristic: no framing, no cipher, no checksum. A transport check. */
 async function readInfo(): Promise<void> {
   const link = connection;
@@ -707,6 +776,8 @@ export async function start(): Promise<void> {
   dom.clearLog.addEventListener("click", clearLog);
   dom.info.addEventListener("click", () => void readInfo());
   dom.write.addEventListener("click", () => void writeSetting());
+  dom.registerRead.addEventListener("click", () => void readRegisters());
+  dom.registerVersions.addEventListener("click", () => void readVersions());
   dom.restart.addEventListener("click", () => void restartDatalogger());
   dom.linkStatus.addEventListener("click", () => void checkLinks());
   renderGroups(GROUPS, { read: (group) => void readGroup(group), write: (group) => void writeGroup(group) });

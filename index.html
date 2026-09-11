@@ -215,6 +215,12 @@
           <dd id="device-status">—</dd>
           <dt>Reported serial</dt>
           <dd id="device-serial">—</dd>
+          <!--
+            Which firmware each component behind the datalogger runs. Filled on demand rather than on
+            connect: it costs a round trip, and it may not be answerable at all.
+          -->
+          <dt>Components</dt>
+          <dd id="device-versions">not asked yet</dd>
         </dl>
 
         <div id="readout" hidden>
@@ -258,6 +264,43 @@
             <input id="write-value" type="text" autocomplete="off" spellcheck="false" placeholder="CRL:">
             <div class="actions">
               <button id="write" type="button">Write, then read it back</button>
+            </div>
+          </details>
+
+          <!--
+            The registers of the controller behind the datalogger, reached through the Modbus passthrough.
+            Behind a fold and below the settings because it addresses a different device: everything above
+            is the datalogger's own configuration.
+
+            Nothing here says what any number means. The map belongs to the controller and its firmware, so
+            it is a property of the model in front of you rather than of this app -- which is what the
+            component versions are for.
+          -->
+          <details id="registers" class="writer">
+            <summary>Read device registers</summary>
+            <p class="caution">
+              The registers of the controller behind the datalogger, not the settings above. Which numbers
+              mean what depends on the model and its firmware.
+            </p>
+            <label for="register-space">Space</label>
+            <select id="register-space">
+              <option value="holding">Holding — settings the server writes</option>
+              <option value="input">Input — measurements the device reports</option>
+            </select>
+            <!-- Two numbers that are read as one range, so they belong on one line. -->
+            <div class="fields">
+              <div class="field">
+                <label for="register-start">First register</label>
+                <input id="register-start" type="number" inputmode="numeric" min="0" max="65535" value="322">
+              </div>
+              <div class="field field-narrow">
+                <label for="register-count">How many</label>
+                <input id="register-count" type="number" inputmode="numeric" min="1" max="16" value="1">
+              </div>
+            </div>
+            <div class="actions">
+              <button id="register-read" type="button">Read</button>
+              <button id="register-versions" class="clear" type="button">Component versions</button>
             </div>
           </details>
 
