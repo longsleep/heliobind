@@ -83,6 +83,34 @@ jobs:
             exit 1
           fi
 
+      # The three protocol constants the package compiles in. Optional, and all three or none: an app
+      # holding a cipher key but no IV is worse than one that asks for all of them, which is what a build
+      # given nothing does.
+      - name: Are the protocol constants configured?
+        env:
+          CIPHER_KEY: ${{ secrets.HELIOBIND_CIPHER_KEY }}
+          CIPHER_IV: ${{ secrets.HELIOBIND_CIPHER_IV }}
+          BIND_KEY: ${{ secrets.HELIOBIND_BIND_KEY }}
+        run: |
+          set -euo pipefail
+          present=0
+          missing=""
+          for name in CIPHER_KEY CIPHER_IV BIND_KEY; do
+            if [ -n "${!name-}" ]; then
+              present=$((present + 1))
+            else
+              missing="$missing HELIOBIND_$name"
+            fi
+          done
+          if [ "$present" -eq 3 ]; then
+            echo "::notice::the Android package will carry the protocol constants"
+          elif [ "$present" -eq 0 ]; then
+            echo "::notice::no protocol constants configured; the package will ask for them, as the site does"
+          else
+            echo "::error::the protocol constants are half configured. Missing secrets:$missing"
+            exit 1
+          fi
+
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run lint
       - run: bun run typecheck
@@ -158,12 +186,20 @@ jobs:
 
       # The name from the tag and the code from the run number, which Android needs to increase and a run
       # number always does.
+      # The constants go in here rather than into the web bundle. Capacitor packages the assets as plain
+      # files, so a key among them is unzip and grep away; as buildConfigField values they land in compiled
+      # DEX, which is the bar the vendor's own application sets and the reason a package may carry what the
+      # website may not. The manifest check below is what keeps that true: a debuggable WebView would hand
+      # them to anyone with a cable.
       - name: Assemble
         working-directory: android
         env:
           HELIOBIND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           HELIOBIND_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           HELIOBIND_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          HELIOBIND_CIPHER_KEY: ${{ secrets.HELIOBIND_CIPHER_KEY }}
+          HELIOBIND_CIPHER_IV: ${{ secrets.HELIOBIND_CIPHER_IV }}
+          HELIOBIND_BIND_KEY: ${{ secrets.HELIOBIND_BIND_KEY }}
         run: |
           ./gradlew --no-daemon assembleRelease \
             -PheliobindVersionName="${{ needs.verify.outputs.version }}" \
@@ -249,7 +285,11 @@ jobs:
             echo "The archive is the same built site, for anyone who would rather serve it themselves;"
             echo "verify it with \`sha256sum -c SHA256SUMS\`."
             echo
-            echo "It carries none of the three protocol constants. It asks for them, as the README explains."
+            if ls dist/heliobind-*.apk >/dev/null 2>&1; then
+              echo "The site asks for the three protocol constants; the Android package has them compiled in."
+            else
+              echo "It carries none of the three protocol constants. It asks for them, as the README explains."
+            fi
           } > dist/NOTES.md
           cat dist/NOTES.md
 
