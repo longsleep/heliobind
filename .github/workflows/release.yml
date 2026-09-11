@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
+      signing: ${{ steps.signing.outputs.available }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -45,6 +46,42 @@ jobs:
             exit 1
           fi
           echo "version=$pkg" >> "$GITHUB_OUTPUT"
+
+      # Whether the Android package can be built, decided here rather than where it is used.
+      #
+      # A job's `if:` cannot see `secrets` — the contexts available to it are `github`, `needs`, `vars` and
+      # `inputs`, and nothing else — so the question has to be answered in a `run:`, which can, and carried
+      # forward as an output. Only the answer travels, never the key.
+      #
+      # All four or none. Half a signing configuration fails inside Gradle with a message about a keystore
+      # password, several minutes into a release, and that is a worse way to find out than this.
+      - name: Is a release signing key configured?
+        id: signing
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          present=0
+          missing=""
+          for name in KEYSTORE KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -n "${!name-}" ]; then
+              present=$((present + 1))
+            else
+              missing="$missing ANDROID_$name"
+            fi
+          done
+          if [ "$present" -eq 4 ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          elif [ "$present" -eq 0 ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::no Android release key is configured; this release will carry the site only"
+          else
+            echo "::error::Android signing is half configured. Missing secrets:$missing"
+            exit 1
+          fi
 
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run lint
@@ -87,7 +124,10 @@ jobs:
     # Only when a release key exists. An unsigned or test-signed APK must never become a release asset:
     # a key anyone can regenerate authenticates nobody, and Android would then refuse the real update
     # later because the signature changed.
-    if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    #
+    # The condition reads an output rather than the secret itself, because a job's `if:` cannot see
+    # `secrets` at all — see the step that produces it.
+    if: ${{ needs.verify.outputs.signing == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -52,12 +52,19 @@ jobs:
       # same signature, so a phone updates rather than demanding an uninstall between them. It is not the
       # release key and must never be — an APK signed with it is for trying, not for handing out. Without
       # the secret the build is simply unsigned, which is still a complete compile check.
+      #
+      # The "if one is configured" test is inside the script rather than in an `if:`, because a step's
+      # condition cannot read `secrets` — only `env` and the other contexts. Passing the secret in as an
+      # environment variable and asking there is the form that works.
       - name: Take the test signing key, if one is configured
-        if: ${{ secrets.ANDROID_TEST_KEYSTORE_BASE64 != '' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_TEST_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64-}" ]; then
+            echo "no test key configured; this package will be unsigned, which still compiles and checks"
+            exit 0
+          fi
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/test.keystore"
           echo "HELIOBIND_KEYSTORE=$RUNNER_TEMP/test.keystore" >> "$GITHUB_ENV"
 
