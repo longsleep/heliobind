@@ -224,28 +224,84 @@
         </dl>
 
         <div id="readout" hidden>
-          <label for="param">Parameter</label>
-          <select id="param"></select>
           <!--
-            Sizes up to 16 answer completely over Bluetooth, and a whole-space read is 146 parameters, so
-            the default is a batch rather than one at a time. One remains available because it is what the
-            vendor app sends, and is the thing to fall back to on a device that answers a batch short.
-            A select rather than free entry: the useful values are few and a typo costs a slow read.
+            The network configuration, one fieldset per frame the device expects. Each group is read before
+            it can be written, so a write can send only what differs — which is what the vendor's own client
+            does, and what keeps a frame from re-asserting values nobody touched.
           -->
-          <label for="batch">Parameters per request</label>
-          <select id="batch">
-            <option value="1">1 — one at a time, as the vendor app asks</option>
-            <option value="2">2</option>
-            <option value="4">4</option>
-            <option value="8" selected>8</option>
-            <option value="16">16 — fastest confirmed</option>
-          </select>
-          <div class="actions">
-            <button id="read" type="button">Read</button>
-            <button id="read-provisioning" type="button">Read provisioning settings</button>
-            <button id="read-space" type="button">Read every parameter</button>
-            <button id="info" type="button">Read 0xFF02</button>
-          </div>
+          <details id="configure" class="writer">
+            <summary>Network configuration</summary>
+            <p class="caution">
+              These settings decide whether the device can be reached at all. Fixing a mistake here means
+              coming back over Bluetooth, in range of the device.
+            </p>
+            <!--
+              Ahead of the groups because it governs every one of them, and ticked by default because none
+              of them do anything until the datalogger restarts — a change that silently has not happened
+              yet is worse than a reboot nobody asked for. Still a choice, so a change can be staged,
+              inspected, and committed later by the button below.
+            -->
+            <label class="flag" for="restart-after">
+              <input id="restart-after" type="checkbox" checked>
+              restart the datalogger after a write, so the change takes effect
+            </label>
+
+            <div id="groups"></div>
+
+            <div class="actions">
+              <button id="restart" type="button">Restart now</button>
+            </div>
+
+            <!--
+              Below the line: everything above changes what the device holds, everything under it is the
+              device's account of itself. Not a test this page performs — the browser is not on that network
+              and its own policy forbids it any request at all — but the datalogger's two answers are the
+              only confirmation a change worked, short of the device turning up somewhere.
+            -->
+            <hr class="divider">
+
+            <div class="pane-heading">
+              <span class="pane-title">What the device reports</span>
+              <button id="link-status" class="clear" type="button">Refresh</button>
+            </div>
+            <dl id="links" class="links">
+              <dt>Wi-Fi network</dt>
+              <dd id="link-router">not asked yet</dd>
+              <dt>Server</dt>
+              <dd id="link-server">not asked yet</dd>
+            </dl>
+            <p id="link-note" class="caution" hidden></p>
+          </details>
+          <!--
+            Folded like every section here, and below the network configuration for the same reason that one
+            is first: this app exists to put a device on a network, and reading parameters is what you do
+            while working out why that did not take.
+          -->
+          <details id="reader" class="writer">
+            <summary>Read parameters</summary>
+            <label for="param">Parameter</label>
+            <select id="param"></select>
+            <!--
+              Sizes up to 16 answer completely over Bluetooth, and a whole-space read is 146 parameters, so
+              the default is a batch rather than one at a time. One remains available because it is what the
+              vendor app sends, and is the thing to fall back to on a device that answers a batch short.
+              A select rather than free entry: the useful values are few and a typo costs a slow read.
+            -->
+            <label for="batch">Parameters per request</label>
+            <select id="batch">
+              <option value="1">1 — one at a time, as the vendor app asks</option>
+              <option value="2">2</option>
+              <option value="4">4</option>
+              <option value="8" selected>8</option>
+              <option value="16">16 — fastest confirmed</option>
+            </select>
+            <div class="actions">
+              <button id="read" type="button">Read</button>
+              <button id="read-provisioning" type="button">Read provisioning settings</button>
+              <button id="read-space" type="button">Read every parameter</button>
+              <button id="info" type="button">Read device info (0xFF02)</button>
+            </div>
+          </details>
 
           <!--
             The writable settings that no group covers, written one at a time. Behind a fold because the
@@ -302,56 +358,6 @@
               <button id="register-read" type="button">Read</button>
               <button id="register-versions" class="clear" type="button">Component versions</button>
             </div>
-          </details>
-
-          <!--
-            The network configuration, one fieldset per frame the device expects. Each group is read before
-            it can be written, so a write can send only what differs — which is what the vendor's own client
-            does, and what keeps a frame from re-asserting values nobody touched.
-          -->
-          <details id="configure" class="writer">
-            <summary>Network configuration</summary>
-            <p class="caution">
-              These are the settings that decide whether the device can be reached at all. Bluetooth is the
-              way back from all of them, which is why they are here rather than nowhere — but the way back
-              means standing next to the device.
-            </p>
-            <!--
-              Ahead of the groups because it governs every one of them, and ticked by default because none
-              of them do anything until the datalogger restarts — a change that silently has not happened
-              yet is worse than a reboot nobody asked for. Still a choice, so a change can be staged,
-              inspected, and committed later by the button below.
-            -->
-            <label class="flag" for="restart-after">
-              <input id="restart-after" type="checkbox" checked>
-              restart the datalogger after a write, so the change takes effect
-            </label>
-
-            <div id="groups"></div>
-
-            <div class="actions">
-              <button id="restart" type="button">Restart now</button>
-            </div>
-
-            <!--
-              Below the line: everything above changes what the device holds, everything under it is the
-              device's account of itself. Not a test this page performs — the browser is not on that network
-              and its own policy forbids it any request at all — but the datalogger's two answers are the
-              only confirmation a change worked, short of the device turning up somewhere.
-            -->
-            <hr class="divider">
-
-            <div class="pane-heading">
-              <span class="pane-title">What the device reports</span>
-              <button id="link-status" class="clear" type="button">Refresh</button>
-            </div>
-            <dl id="links" class="links">
-              <dt>Wi-Fi network</dt>
-              <dd id="link-router">not asked yet</dd>
-              <dt>Server</dt>
-              <dd id="link-server">not asked yet</dd>
-            </dl>
-            <p id="link-note" class="caution" hidden></p>
           </details>
         </div>
 
