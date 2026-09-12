@@ -1,5 +1,9 @@
 # Heliobind
 
+[![CI](https://github.com/longsleep/heliobind/actions/workflows/android.yml/badge.svg?branch=main)](https://github.com/longsleep/heliobind/actions/workflows/android.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/longsleep/heliobind?include_prereleases&logo=github)](https://github.com/longsleep/heliobind/releases)
+[![License](https://img.shields.io/github/license/longsleep/heliobind)](LICENSE)
+
 Wi-Fi and server setup for a Growatt NEXA 2000, over Bluetooth — from a browser, standing next to the
 device, with no vendor app, no account and no network.
 
