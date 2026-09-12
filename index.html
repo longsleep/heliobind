@@ -136,9 +136,10 @@
         </p>
 
         <!--
-          The three constants this project does not ship. They come from the vendor application; see the
-          README. Kept in one block so it is obvious they belong together, and remembered in the browser so
-          they are typed once.
+          The three constants, none of which is in this repository. A build may carry the cipher pair, in
+          which case those two rows are not rendered at all; the handshake key is always a field, because it
+          belongs to the device rather than to the protocol. Kept in one block so it is obvious they belong
+          together, and remembered in the browser so nothing is typed twice. See the README.
         -->
         <details id="secrets" class="secrets">
           <summary>

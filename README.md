@@ -47,7 +47,8 @@ by definition, one the device cannot reach yet.
 
 Chrome offers the install in the address bar, or under ⋮ → Cast, save and share → Install page as app.
 
-Heliobind cannot reach a device until the three constants below are entered. The app does not ship them.
+Heliobind cannot reach a device until it has the three constants below. The published page carries two of
+them; the third is the handshake key, and the section below says where yours comes from.
 
 ## Requirements
 
@@ -63,21 +64,23 @@ rather than failing at the first tap.
 
 Served over HTTPS, or from `localhost`. Web Bluetooth requires a secure context.
 
-**Three constants, which this project does not distribute.** See below.
+**Three constants.** The published page supplies two; the third depends on your device. See below.
 
-## The constants this app does not ship
+## The constants
 
-The Bluetooth interface needs three values that are not in this repository: a cipher key, a cipher IV, and
-the handshake key a device is greeted with. Enter them under **Protocol constants** in the app; they are
-kept in the browser's own storage and typed once. Until all three are present, nothing connects.
+The Bluetooth interface needs three values, none of them in this repository: a cipher key, a cipher IV, and
+the handshake key a device is greeted with. Until all three are present, nothing connects.
 
-They are held back deliberately. The values are the same on every device of this family, the device accepts
-them from anyone in radio range, and nothing on the vendor's side limits what may then be read or written —
-so they open a neighbour's battery exactly as readily as your own.
+**The cipher pair belongs to the protocol**, not to any one device, and the published page and the Android
+package both carry it. Nothing to enter and nothing on screen for it.
 
-All three are recoverable from the vendor's Android application by anyone willing to decompile it. That is
-the point: it is a small effort for someone doing protocol work on hardware they own, and one this project
-declines to remove for everyone else.
+**The handshake key belongs to a device**, so no build can know yours. It is the one value the app asks
+for, under **Protocol constants**, and it is kept in the browser's own storage and typed once. Which value
+your device wants depends on its history — see below.
+
+All three are recoverable from the vendor's Android application by anyone willing to decompile it, which is
+why carrying the cipher pair gives up nothing that was not already public. The handshake key is different
+in kind: yours is not a constant at all in a device the vendor's application has set up.
 
 > Anything you enter is stored in that browser profile and never leaves the device — the app makes no
 > network requests at all, which its content security policy enforces rather than promises. On a shared
