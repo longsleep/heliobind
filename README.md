@@ -50,6 +50,14 @@ Chrome offers the install in the address bar, or under ⋮ → Cast, save and sh
 Heliobind cannot reach a device until it has the three constants below. The published page carries two of
 them; the third is the handshake key, and the section below says where yours comes from.
 
+### On Android, as a package
+
+**→ [Releases](https://github.com/longsleep/heliobind/releases)** — `heliobind-<version>.apk`.
+
+**It carries a default handshake key as well as the cipher, so there is nothing to enter at all.** The
+block below is then a checkbox rather than a form: tick it and connect. A device that refuses that key is
+what the IoT button is for, further down.
+
 ## Requirements
 
 **Chrome or Edge**, on Android, Windows, macOS or ChromeOS. Desktop works if the machine has a Bluetooth
