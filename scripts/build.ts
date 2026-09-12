@@ -57,15 +57,6 @@ const CSP = [
 /** Whatever CI passes; "development" locally so the page never claims a provenance it lacks. */
 const buildRef = process.env.BUILD_REF?.trim() || "development";
 
-/**
- * Whether to compile the protocol constants into the page.
- *
- * Set by `bun run build:local`, and by nothing else. `.env.local` alone is not enough: it is read by the
- * dev server, where prefilling is harmless, and would otherwise silently reach a tarball through any build
- * run on this machine.
- */
-const inlineConstants = process.env.HELIOBIND_INLINE === "1";
-
 /** The names src/settings.ts reads, and the only ones a build may answer. */
 const CONSTANT_NAMES = [
   "BUN_PUBLIC_HELIOBIND_CIPHER_KEY",
@@ -73,11 +64,38 @@ const CONSTANT_NAMES = [
   "BUN_PUBLIC_HELIOBIND_BIND_KEY",
 ] as const;
 
+/** The pair that is a property of the protocol rather than of any one device. */
+const CIPHER_NAMES = CONSTANT_NAMES.filter((name) => name !== "BUN_PUBLIC_HELIOBIND_BIND_KEY");
+
+/**
+ * Which constants this build may carry.
+ *
+ * Three modes, and the default carries nothing. `.env.local` alone is never enough: it is read by the dev
+ * server, where prefilling is harmless, and would otherwise silently reach a published artefact through any
+ * build run on this machine.
+ *
+ * - `1` — all three, set by `bun run build:local`. For a copy somebody installs on their own phone.
+ * - `cipher` — the cipher pair and not the handshake key, set by `bun run build:site-constants`. The
+ *   handshake key is left out because it is a property of the device in front of somebody, and because a
+ *   published page offering one would be offering to unlock a stranger's battery rather than their own.
+ * - anything else, including unset — nothing.
+ */
+const inlined: readonly string[] = (() => {
+  switch (process.env.HELIOBIND_INLINE) {
+    case "1":
+      return CONSTANT_NAMES;
+    case "cipher":
+      return CIPHER_NAMES;
+    default:
+      return [];
+  }
+})();
+
 /**
  * What each `process.env.NAME` becomes in the bundle.
  *
- * Every name is substituted on every build — with the value when one was asked for, with an empty string
- * otherwise. Naming them explicitly is the point of doing it this way. Bun's `env` prefix option only
+ * Every name is substituted on every build — with the value when this build may carry it, with an empty
+ * string otherwise. Naming them explicitly is the point of doing it this way. Bun's `env` prefix option only
  * substitutes variables that are *set*, so an absent one is left standing as `process.env.NAME`, and a
  * browser has no `process` to evaluate that against: the module throws while being imported and the page is
  * blank. Listing the names means the substitution does not depend on the environment having them.
@@ -85,13 +103,19 @@ const CONSTANT_NAMES = [
 const substitutions = Object.fromEntries(
   CONSTANT_NAMES.map((name) => [
     `process.env.${name}`,
-    JSON.stringify(inlineConstants ? (process.env[name] ?? "") : ""),
+    JSON.stringify(inlined.includes(name) ? (process.env[name] ?? "") : ""),
   ]),
 );
 
-/** The values that must not appear in a build that did not ask for them. */
-const constants = Object.entries(process.env)
-  .filter(([name]) => name.startsWith("BUN_PUBLIC_HELIOBIND_"))
+/**
+ * The values that must not appear in the output, whatever mode this is.
+ *
+ * Every constant in the environment that this build was not asked to carry. In the default mode that is all
+ * of them; in `cipher` mode it is the handshake key, which is the one the check earns its keep on — the
+ * two halves of that mode differ by one name, and a mistake would be invisible in the page.
+ */
+const forbidden = Object.entries(process.env)
+  .filter(([name]) => name.startsWith("BUN_PUBLIC_HELIOBIND_") && !inlined.includes(name))
   .map(([, value]) => value)
   .filter((value): value is string => Boolean(value));
 
@@ -133,9 +157,9 @@ const result = await Bun.build({
   // a browser bundle has no Capacitor in it to select.
   conditions: ANDROID ? ["capacitor"] : [],
   // Nothing from the environment reaches the browser on its own. `substitutions` above is the only route,
-  // and it carries a value only under `bun run build:local` — a build that carries the protocol constants
-  // is a convenience for one phone, and a build that carries them by accident is a publication. Asking for
-  // it has to be typed on purpose rather than being what happens when .env.local exists.
+  // and it carries a value only in the modes `HELIOBIND_INLINE` names — a build that carries them by
+  // accident is a publication, so asking for it has to be typed on purpose rather than being what happens
+  // when .env.local exists.
   env: "disable",
   define: {
     __BUILD_REF__: JSON.stringify(buildRef),
@@ -232,22 +256,27 @@ if (!ANDROID) {
  * bundle, `env: "disable"` would not stop it and nothing else would notice. Reading them from the
  * environment is only how the search terms are obtained — on a machine that has none, there is nothing to
  * find and this passes trivially.
+ *
+ * It runs in every mode, because every mode has something to keep out. `cipher` is the one that needs it
+ * most: what separates a page anyone may open from one that hands out a handshake key is a single name in
+ * a list, and the difference does not show on screen.
  */
-if (!inlineConstants) {
-  for (const output of result.outputs) {
-    const text = await readFile(output.path, "utf8").catch(() => "");
-    const found = constants.find((constant) => text.includes(constant));
-    if (found) {
-      console.error(`${output.path} carries a protocol constant; refusing to produce this build`);
-      process.exit(1);
-    }
+for (const output of result.outputs) {
+  const text = await readFile(output.path, "utf8").catch(() => "");
+  const found = forbidden.find((constant) => text.includes(constant));
+  if (found) {
+    console.error(`${output.path} carries a protocol constant it was not asked to; refusing this build`);
+    process.exit(1);
   }
 }
 
-console.error(
-  `built ${result.outputs.length} files into ${OUT}/ as ${buildRef}` +
-    (inlineConstants ? " with the protocol constants compiled in" : ""),
-);
+const carried =
+  inlined.length === CONSTANT_NAMES.length
+    ? " with the protocol constants compiled in"
+    : inlined.length > 0
+      ? " with the cipher compiled in and no handshake key"
+      : "";
+console.error(`built ${result.outputs.length} files into ${OUT}/ as ${buildRef}${carried}`);
 for (const output of result.outputs) {
   console.error(`  ${output.path.replace(`${process.cwd()}/`, "")}  ${output.size} bytes`);
 }

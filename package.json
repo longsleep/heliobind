@@ -63,7 +63,8 @@
     "check": "bun run lint && bun run typecheck && bun test",
     "serve": "bun ./scripts/serve.ts",
     "prepack": "bun run build",
-    "build:local": "HELIOBIND_INLINE=1 bun run scripts/build.ts"
+    "build:local": "HELIOBIND_INLINE=1 bun run scripts/build.ts",
+    "build:site-constants": "HELIOBIND_INLINE=cipher bun run scripts/build.ts"
   },
   "dependencies": {},
   "devDependencies": {

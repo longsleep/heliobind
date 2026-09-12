@@ -43,11 +43,18 @@ jobs:
         with:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile --ignore-scripts
+      # `build:site-constants` rather than `build`: the published page carries the cipher pair so nobody has
+      # to extract it, and never the handshake key, which belongs to a device rather than to the protocol.
+      # The build refuses to finish if a constant it was not asked to carry appears in the output, so the
+      # distinction is enforced rather than trusted. Secrets absent — a fork, say — substitutes empty
+      # strings and the page asks for all three, exactly as it did before.
       - name: Build
         env:
           # Stamped into the page so a reader can match what is running to a commit.
           BUILD_REF: ${{ github.ref_name }} (${{ github.sha }})
-        run: bun run build
+          BUN_PUBLIC_HELIOBIND_CIPHER_KEY: ${{ secrets.HELIOBIND_CIPHER_KEY }}
+          BUN_PUBLIC_HELIOBIND_CIPHER_IV: ${{ secrets.HELIOBIND_CIPHER_IV }}
+        run: bun run build:site-constants
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: dist
