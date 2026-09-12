@@ -216,7 +216,14 @@ const assets = [
   ...result.outputs.map((output) => `./${output.path.replace(`${process.cwd()}/${OUT}/`, "")}`),
   ...iconNames.map((name) => `./icons/${name}`),
 ];
-await writeFile(join(OUT, "sw.js"), serviceWorker(`heliobind-${buildRef}`, assets));
+
+// Not for the package. Its assets are files inside the APK and its version arrives with the APK, so there
+// is nothing for a worker to cache and nothing it could offer that the installer does not do properly. The
+// bundle it goes with agrees: `#offline` resolves to the no-op under the `capacitor` condition, so nothing
+// in an Android build would ask for this file.
+if (!ANDROID) {
+  await writeFile(join(OUT, "sw.js"), serviceWorker(`heliobind-${buildRef}`, assets));
+}
 
 /*
  * Prove it, rather than trust the switch above.
@@ -244,4 +251,8 @@ console.error(
 for (const output of result.outputs) {
   console.error(`  ${output.path.replace(`${process.cwd()}/`, "")}  ${output.size} bytes`);
 }
-console.error(`  ${OUT}/sw.js  precaching ${assets.length} files`);
+if (ANDROID) {
+  console.error("  no service worker: the package serves itself and updates with the package");
+} else {
+  console.error(`  ${OUT}/sw.js  precaching ${assets.length} files`);
+}

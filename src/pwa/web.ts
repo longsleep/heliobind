@@ -27,25 +27,9 @@
  * Safari have no Web Bluetooth either, so the app has already refused to run there.
  */
 
-/** What the page shows and hides when an update is ready. */
-export interface UpdatePrompt {
-  /** Reveal the offer. Called once, when a newer version has installed and is waiting. */
-  show(): void;
-  /** Called with the action that performs the update, so the prompt can wire its own button. */
-  onAccept(take: () => void): void;
-}
+import type { InstallOffer, UpdatePrompt } from "./prompt.ts";
 
-/** What the page shows and hides when the app can be installed. */
-export interface InstallOffer {
-  /** Reveal the offer. Called when the browser reports the app installable. */
-  show(): void;
-  /** Hide it: taken, refused, or overtaken by an install from the browser's own menu. */
-  hide(): void;
-  /** Called with the action that prompts, so the offer can wire its own button. */
-  onAccept(take: () => void): void;
-  /** Called when the browser's own dialog was dismissed, so the refusal can be remembered. */
-  declined(): void;
-}
+export type { InstallOffer, UpdatePrompt };
 
 /**
  * The event Chromium fires when the app meets its installability criteria.

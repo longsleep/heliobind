@@ -23,7 +23,7 @@
     "pwa"
   ],
   "type": "module",
-  "//imports": "Which transport a bundle contains is decided here, not at runtime. `bun build --conditions capacitor` takes the Android one; everything else takes the browser one, so a web bundle cannot contain Capacitor and an npm publish cannot carry Android code.",
+  "//imports": "What a bundle contains is decided here, not at runtime. `bun build --conditions capacitor` takes the Android side of each; everything else takes the browser one, so a web bundle cannot contain Capacitor and an npm publish cannot carry Android code. `#offline` is the same switch pointed at the service worker and the install offer, which the package has no use for.",
   "imports": {
     "#transport": {
       "capacitor": "./src/transport/native.ts",
@@ -32,6 +32,10 @@
     "#constants": {
       "capacitor": "./src/constants/native.ts",
       "default": "./src/constants/web.ts"
+    },
+    "#offline": {
+      "capacitor": "./src/pwa/native.ts",
+      "default": "./src/pwa/web.ts"
     }
   },
   "bin": {

@@ -6,6 +6,7 @@
  */
 
 import { supplied } from "#constants";
+import { install, offerInstall } from "#offline";
 import { choose, isSupported, NATIVE, open } from "#transport";
 import { AuthenticationError, Device } from "../device.ts";
 import {
@@ -29,7 +30,6 @@ import {
   WRITABLE_ALONE,
 } from "../protocol/params.ts";
 import { accepted } from "../protocol/response.ts";
-import { install, offerInstall } from "../pwa.ts";
 import {
   adoptSupplied,
   type Field,
