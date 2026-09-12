@@ -309,12 +309,34 @@ async function readGroup(group: Group): Promise<void> {
         appendResult(
           `${describe(param.number).padEnd(22)} ${renderReading(param.number, values.get(param.number) ?? "")}`,
         );
+        reportAliasDisagreement(group, param, values);
       }
       groupReadable(group, true);
     } catch (error) {
       appendResult(`${group.title}: could not be read: ${reasonOf(error)}`);
     }
   });
+}
+
+/**
+ * Say so when two numbers for one setting hold different things.
+ *
+ * They should not: the device applies whichever arrives last and the other is left holding a value nothing
+ * reads. When it happens, something else wrote them — and since the form shows one box, saying which number
+ * it reflects is the difference between an explanation and a surprise.
+ */
+function reportAliasDisagreement(group: Group, param: Param, values: Map<number, string>): void {
+  const alias = group.params.find((other) => other.aliasOf === param.number);
+  if (!alias) return;
+  const mine = values.get(param.number) ?? "";
+  const theirs = values.get(alias.number) ?? "";
+  if (mine === theirs) return;
+  const show = (value: string) => (value === "" ? "(empty)" : value);
+  appendResult(
+    `  ⚠ ${param.number} and ${alias.number} are one setting and disagree: ` +
+      `${param.number} holds ${show(mine)}, ${alias.number} holds ${show(theirs)}. ` +
+      `The box shows ${param.number}; writing it sets both.`,
+  );
 }
 
 /** Write what changed in one group, as one frame, then read it back. */
@@ -331,12 +353,27 @@ async function writeGroup(group: Group): Promise<void> {
   // A checkbox has no empty state, so a flag the device did not answer for reads as its `off` value and
   // counts as a change. That is a write nobody typed, which is why the confirmation below lists every entry
   // by name: it is visible before it goes, rather than surprising afterwards.
-  const edits = group.params
-    .map((param) => ({ param, field: groupField(group, param) }))
-    .filter((entry): entry is { param: Param; field: HTMLInputElement } => entry.field !== null)
-    .map((entry) => ({ param: entry.param, value: fieldValue(entry.param, entry.field) }))
-    .filter((entry) => entry.value !== (before.get(entry.param.number) ?? ""))
-    .map((entry) => ({ param: entry.param.number, value: entry.value }));
+  // What each box holds, keyed by the parameter it belongs to. An alias has no box; it takes its value from
+  // the parameter it is a second number for.
+  const typed = new Map<number, string>();
+  for (const param of group.params) {
+    if (param.aliasOf !== undefined) continue;
+    const field = groupField(group, param);
+    if (field) typed.set(param.number, fieldValue(param, field));
+  }
+
+  // A change to one setting writes every number it has. For a parameter with an alias that means both go
+  // out together, whichever of the two was stale: leaving one behind puts a value in the device that
+  // nothing here will read and the next writer might apply. The order is the group's, so the principal
+  // still comes after its alias, which is the one the firmware keeps.
+  const edits = group.params.flatMap((param) => {
+    const source = param.aliasOf ?? param.number;
+    const value = typed.get(source);
+    if (value === undefined) return [];
+    const numbers = [source, ...group.params.filter((p) => p.aliasOf === source).map((p) => p.number)];
+    const changed = numbers.some((number) => value !== (before.get(number) ?? ""));
+    return changed ? [{ param: param.number, value }] : [];
+  });
 
   if (edits.length === 0) {
     appendResult(`${group.title}: nothing changed, so nothing sent`);

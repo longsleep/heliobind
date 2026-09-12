@@ -44,6 +44,15 @@ export interface Param {
     /** What ticking the box does, in the words of somebody deciding whether to. */
     readonly label: string;
   };
+  /**
+   * The parameter this one is a second number for, where the device keeps one setting under two.
+   *
+   * Registers 17 and 19 are the case that exists: the firmware hands both to one endpoint setter, so
+   * whichever arrives last wins and the other is left holding a value nothing will ever read. A form with
+   * two boxes can express a difference between them; the device cannot. So the alias gets no box of its
+   * own, and is written from the principal's, with both in the same frame.
+   */
+  readonly aliasOf?: number;
 }
 
 /** Shorthand for a parameter nothing may write, which is most of them. */
@@ -71,6 +80,7 @@ function writable(
   summary: string,
   labels?: Param["labels"],
   toggle?: Param["toggle"],
+  aliasOf?: number,
 ): Param {
   return {
     number,
@@ -80,6 +90,7 @@ function writable(
     confidence,
     ...(labels && { labels }),
     ...(toggle && { toggle }),
+    ...(aliasOf !== undefined && { aliasOf }),
   };
 }
 
@@ -183,7 +194,10 @@ export const REMOTE_URL = writable(
   19,
   "remote_url",
   "device",
-  "The same setting as 17, not a second hostname field. The vendor app blanks whichever it is not using; copying that leaves no stale value behind.",
+  "The same setting as 17, not a second hostname field. Written together with it and from the same box, because a form that offers two fields for one setting can express a difference the device cannot hold.",
+  undefined,
+  undefined,
+  17,
 );
 
 // How it behaves once connected.
@@ -561,7 +575,7 @@ export const SERVER_GROUP: Group = {
   key: "server",
   title: "Server",
   summary:
-    "Where the device reports. 17 and 19 are one setting, so both are written — the vendor's client blanks whichever it is not using, which leaves no stale value for the next writer to inherit.",
+    "Where the device reports. 17 and 19 are one setting under two numbers, so there is one box and both are written from it; the port is its own setting and travels in the same frame, because a device that takes the host and not the port is as lost as one that took neither.",
   params: [REMOTE_URL, SERVER_ADDRESS, REMOTE_PORT],
   disruptive: true,
   restartToApply: true,

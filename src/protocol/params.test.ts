@@ -17,6 +17,7 @@ import {
   PROVISIONING,
   RESTART,
   SDK_VERSION,
+  SERVER_GROUP,
   SW_VERSION,
   WRITABLE,
   WRITABLE_ALONE,
@@ -235,6 +236,32 @@ describe("the settings written one at a time", () => {
     // offers is a permission granted to nobody, and a sign the two lists have drifted.
     for (const param of WRITABLE) {
       expect(offered.has(param.number)).toBe(true);
+    }
+  });
+});
+
+describe("one setting under two numbers", () => {
+  test("the server group carries 19 as an alias of 17, and 19 goes first", () => {
+    const numbers = SERVER_GROUP.params.map((param) => param.number);
+    expect(numbers).toEqual([19, 17, 18]);
+    // The principal comes after its alias, which is the one the firmware keeps.
+    expect(SERVER_GROUP.params.find((p) => p.number === 19)?.aliasOf).toBe(17);
+    expect(SERVER_GROUP.params.find((p) => p.number === 17)?.aliasOf).toBeUndefined();
+  });
+
+  test("no other group has an alias, so the merge is scoped to the one that needs it", () => {
+    const others = GROUPS.filter((group) => group !== SERVER_GROUP);
+    for (const group of others) {
+      expect(group.params.every((param) => param.aliasOf === undefined)).toBe(true);
+    }
+  });
+
+  test("an alias names a parameter that is in the same group", () => {
+    for (const group of GROUPS) {
+      for (const param of group.params) {
+        if (param.aliasOf === undefined) continue;
+        expect(group.params.some((other) => other.number === param.aliasOf)).toBe(true);
+      }
     }
   });
 });

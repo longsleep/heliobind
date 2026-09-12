@@ -228,6 +228,12 @@ export function renderGroups(
     fieldset.append(summary);
 
     for (const param of group.params) {
+      // An alias has no box: it is one setting under two numbers and is written from the principal's field.
+      // Its number still appears, on that field's label, because a parameter is named here by its number
+      // and hiding one would make the frame's contents a surprise.
+      if (param.aliasOf !== undefined) continue;
+
+      const aliases = group.params.filter((other) => other.aliasOf === param.number);
       const input = document.createElement("input");
       input.id = fieldId(group, param);
       input.dataset.param = String(param.number);
@@ -250,7 +256,8 @@ export function renderGroups(
         input.type = "text";
         input.autocomplete = "off";
         input.spellcheck = false;
-        label.textContent = `${param.number} — ${param.name}`;
+        const numbers = [param.number, ...aliases.map((alias) => alias.number)].join(" & ");
+        label.textContent = `${numbers} — ${param.name}`;
         fieldset.append(label, input);
       }
     }
