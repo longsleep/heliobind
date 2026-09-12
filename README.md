@@ -135,6 +135,45 @@ It also needs heliobridge already speaking to the device over the network, which
 sequence is worth knowing anyway: heliobridge is how a device that has been pointed somewhere new is
 confirmed to have arrived.
 
+### Reading the account key from the vendor's cloud
+
+A device provisioned by the vendor's application holds that account's own token in register 54, not a value
+generated for the device. The token is one string per Growatt account, identical across every device on it,
+and the cloud will hand it to whoever can log in.
+
+Use this for a device the vendor's application set up, when heliobridge is not already talking to it and
+you would rather not press the IoT button. The command prompts for the account and password, so neither
+reaches a shell history, and prints the token:
+
+```console
+$ bash -c '
+read -rp "Growatt account: " ACC
+read -rsp "Password: " PW; echo
+HASH=$(printf %s "$PW" | md5sum | cut -d" " -f1 | fold -w2 | sed "s/^0/c/" | tr -d "\n")
+MS=$(date +%s%3N)
+TS=${MS:0:11}$(printf %02d $(( (10#${MS:1:1}${MS:3:1}${MS:5:1}${MS:7:1}) % 98 )))
+curl -s https://server-api.growatt.com/newTwoLoginAPIV2.do \
+  --data-urlencode "userName=$ACC" --data-urlencode "password=$HASH" \
+  --data-urlencode "timestamp=$TS" \
+  --data "language=1&appType=ShinePhone&phoneType=android&newLogin=1" \
+| python3 -c "import json,sys; b=json.load(sys.stdin)[\"back\"]; print(b[\"user\"][\"cpowerToken\"]) if b.get(\"success\") else sys.exit(\"login failed: \"+str(b.get(\"error\") or b.get(\"msg\")))"
+'
+Growatt account: someone
+Password:
+0123456789abcdef0123456789abcdef
+```
+
+Paste the result into **Key presented on connecting**, unticking **Use default handshake key** first. It
+needs `curl`, `python3` and coreutils. The `bash -c` wrapper matters in shells such as fish, where the
+expansions do not parse.
+
+> ⚠ The token is an **account** credential. It opens the Bluetooth interface of every device the account
+> owns, so it should be handled like the account password — not pasted into an issue or a screenshot.
+> Entering it under **Protocol constants** stores it in that browser profile until **Reset**.
+
+This command is run in a terminal, by you. Heliobind itself makes no network requests and reaches the
+vendor's cloud at no point.
+
 ### Restoring the default key with the IoT button
 
 The other way round the problem: rather than finding out what key a device expects, give it back the one
