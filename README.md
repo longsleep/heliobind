@@ -83,6 +83,29 @@ declines to remove for everyone else.
 > network requests at all, which its content security policy enforces rather than promises. On a shared
 > machine, use **Reset**.
 
+### Which key a device wants
+
+What a device expects depends on whether the vendor's application has ever set it up.
+
+| The device | What to present |
+|---|---|
+| Never set up with the vendor's application | **Use default handshake key** |
+| Set up with the vendor's application, bound to a Growatt account | **that account's token**, or press the IoT button to put the default back |
+| Set up with an account you no longer have access to | press the IoT button |
+| After a 3 to 10 second IoT button press | **Use default handshake key** |
+
+**Use default handshake key** is offered only by a build that was given the default to carry. Where the
+checkbox is absent, the build has no key of its own, and every row above that names it means typing the
+value into **Key presented on connecting** instead — the same field the other rows use.
+
+A device that has been through the vendor's application holds that account's token in register 54, and it
+stays there until something overwrites it — pointing the device at your own server does not clear it, and
+neither does a restart. The IoT button is what puts the default back, and it is the only one of these
+routes that changes the device.
+
+Two ways to learn the token without the button: read register 54 from the device, which needs heliobridge
+already talking to it, or ask the cloud, which needs the account it was set up with. Both are below.
+
 ### Reading the handshake key from the device itself
 
 One of the three does not have to come out of the vendor's application. The handshake key is a
