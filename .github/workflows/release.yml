@@ -105,7 +105,7 @@ jobs:
           if [ "$present" -eq 3 ]; then
             echo "::notice::the Android package will carry the protocol constants"
           elif [ "$present" -eq 0 ]; then
-            echo "::notice::no protocol constants configured; the package will ask for them, as the site does"
+            echo "::notice::no protocol constants configured; the package will ask for them"
           else
             echo "::error::the protocol constants are half configured. Missing secrets:$missing"
             exit 1
@@ -285,11 +285,12 @@ jobs:
             fi
             echo
             echo "The app runs at https://longsleep.github.io/heliobind/, which this tag has just deployed."
-            echo "The archive is the same built site, for anyone who would rather serve it themselves;"
-            echo "verify it with \`sha256sum -c SHA256SUMS\`."
+            echo "The archive is the same app built to carry no protocol constants, for anyone who would"
+            echo "rather serve it themselves; verify it with \`sha256sum -c SHA256SUMS\`."
             echo
             if ls dist/heliobind-*.apk >/dev/null 2>&1; then
-              echo "The site asks for the three protocol constants; the Android package has them compiled in."
+              echo "The Android package has the cipher and a default handshake key compiled in. The archive"
+              echo "has neither and asks for them, as the README explains."
             else
               echo "It carries none of the three protocol constants. It asks for them, as the README explains."
             fi
