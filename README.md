@@ -185,6 +185,11 @@ instead.
 
 The press is not a factory reset and does not touch the Wi-Fi credentials or where the device reports.
 
+**It does take the device off the network for a few seconds.** The press restarts the network stack: the
+device leaves the Wi-Fi, rejoins it, takes a fresh lease and opens a new connection to whatever server it
+reports to — measured at about eleven seconds end to end. Anything watching it will see a gap, so press it
+at a moment when a gap costs nothing.
+
 > ⚠ **Do not hold it past ten seconds.** Above that is a different band that reaches a factory-reset
 > routine, and what it clears has not been established. Between two and three seconds nothing happens at
 > all, and under two seconds the button restarts the radio instead.
