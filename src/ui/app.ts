@@ -32,7 +32,6 @@ import {
 import { accepted } from "../protocol/response.ts";
 import {
   adoptSupplied,
-  type Field,
   forget,
   load,
   mayOfferInstall,
@@ -40,7 +39,7 @@ import {
   save,
   shipped,
   shippedBindKey,
-  shippedWithConstants,
+  shippedCipher,
   useShippedBindKey,
   usingShippedBindKey,
 } from "../settings.ts";
@@ -667,21 +666,15 @@ function wireSecrets(): void {
   const ownKey = (): void => {
     dom.keyOwn.hidden = shipped("bindKey") && dom.keyBuiltin.checked;
   };
-  /**
-   * The fields still showing what the build carries, rather than something somebody typed.
-   *
-   * Tracked here rather than asked of the store, because the store only learns of a new value when the
-   * field is committed — and the moment that matters is the keystroke before that.
-   */
-  const untouched = new Set<Field>();
-
   const applyMode = (): void => {
-    // Masked, not hidden: a value the build already carries is not a secret from the person holding the
-    // phone, and typing over it must stay possible. It is a secret from whoever else can see the screen.
-    dom.cipherKey.type = shipped("cipherKey") ? "password" : "text";
-    dom.cipherIv.type = shipped("cipherIv") ? "password" : "text";
-    dom.secretsSupplied.hidden = !shippedWithConstants();
-    dom.secretsAbsent.hidden = shippedWithConstants();
+    // Gone, not masked. A build that carries the cipher never needs either value touched, and a masked
+    // field that nobody has to fill in is an invitation to ask what is behind the dots. Both rows go
+    // together or neither does, because half a cipher configures nothing.
+    const cipher = shippedCipher();
+    dom.cipherKeyRow.hidden = cipher;
+    dom.cipherIvRow.hidden = cipher;
+    dom.secretsSupplied.hidden = !cipher;
+    dom.secretsAbsent.hidden = cipher;
 
     // The handshake key is a choice rather than a masked field, because it is the one constant that is
     // per-device: a build cannot know that the key it carries is the right one for the device in front of
@@ -689,11 +682,6 @@ function wireSecrets(): void {
     dom.keyBuiltinRow.hidden = !shipped("bindKey");
     dom.keyBuiltin.checked = usingShippedBindKey();
     ownKey();
-
-    untouched.clear();
-    for (const field of ["cipherKey", "cipherIv"] as const) {
-      if (shipped(field)) untouched.add(field);
-    }
   };
   applyMode();
 
@@ -715,23 +703,6 @@ function wireSecrets(): void {
   };
 
   const remember = (field: "cipherKey" | "cipherIv" | "bindKey", input: HTMLInputElement): void => {
-    /*
-     * Typing over a value the build carries starts from nothing, and stops masking it.
-     *
-     * `beforeinput` rather than `input`, because it arrives while the field still holds the old value: the
-     * keystroke then lands in an empty field instead of being appended to a value that would become
-     * readable the moment the mask came off. The mask exists so the constant cannot be read off a screen,
-     * and revealing it in the act of replacing it would undo exactly that.
-     *
-     * Only the two masked fields have anything to hide this way, which `untouched` already accounts for.
-     */
-    input.addEventListener("beforeinput", () => {
-      if (!untouched.has(field)) return;
-      untouched.delete(field);
-      input.value = "";
-      input.type = "text";
-    });
-
     input.addEventListener("input", () => {
       if (field !== "bindKey") applyCipher();
       refreshConnect();

@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { ASK_AGAIN_AFTER_MS, dueAgain } from "./settings.ts";
+import { ASK_AGAIN_AFTER_MS, adoptSupplied, dueAgain, shipped, shippedCipher } from "./settings.ts";
 
 /** An arbitrary fixed instant, so nothing here depends on the clock. */
 const NOW = 1_800_000_000_000;
@@ -38,5 +38,36 @@ describe("the install offer", () => {
 
   test("is a month, in the units the browser counts in", () => {
     expect(ASK_AGAIN_AFTER_MS).toBe(30 * 24 * 60 * 60 * 1000);
+  });
+});
+
+/**
+ * Whether both cipher fields can be left off the page.
+ *
+ * The store is absent here, which is the state this asserts against: `read` answers "" without one, so
+ * every constant in force is the build's. That is exactly the situation the interface has to get right —
+ * a packaged build on a phone whose browser storage holds nothing yet.
+ */
+describe("a build that carries the cipher", () => {
+  test("hides both fields only when it carries both", () => {
+    adoptSupplied({ cipherKey: "k".repeat(16), cipherIv: "v".repeat(16) });
+    expect(shippedCipher()).toBe(true);
+
+    adoptSupplied({ cipherKey: "k".repeat(16), cipherIv: "" });
+    expect(shippedCipher()).toBe(false);
+
+    adoptSupplied({ cipherKey: "", cipherIv: "v".repeat(16) });
+    expect(shippedCipher()).toBe(false);
+  });
+
+  test("the handshake key has no say in it", () => {
+    adoptSupplied({ cipherKey: "k".repeat(16), cipherIv: "v".repeat(16), bindKey: "" });
+    expect(shippedCipher()).toBe(true);
+    expect(shipped("bindKey")).toBe(false);
+  });
+
+  test("a build carrying nothing shows both", () => {
+    adoptSupplied({});
+    expect(shippedCipher()).toBe(false);
   });
 });

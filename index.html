@@ -159,34 +159,42 @@
           </p>
 
           <!--
-            Shown instead when the build carries them. Masked rather than displayed because a value already
-            inside the build gains nothing from being on screen, and a screen is read by whoever is standing
-            near it.
+            Shown instead when the cipher rows are not there to fill in. It describes what is left rather
+            than what was removed: a note explaining an absent field only draws attention to it.
           -->
           <p class="note" id="secrets-supplied" hidden>
-            This build carries the constants, so there is nothing to enter. They are masked because they are
-            credentials. Type over them to use different ones, and Reset to come back to these.
+            The handshake key is the value a device is unlocked with, and nothing is served until it is
+            accepted. Reset returns this block to the state it started in.
           </p>
 
-          <label for="cipher-key">Cipher key</label>
-          <input
-            id="cipher-key"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            maxlength="16"
-            placeholder="16 characters"
-          >
+          <!--
+            Both rows are removed outright in a build that carries the cipher, rather than shown filled or
+            masked. A field nobody has to touch is a question about where its contents came from, and the
+            answer is of no use to somebody who only wants to configure their device.
+          -->
+          <div id="cipher-key-row">
+            <label for="cipher-key">Cipher key</label>
+            <input
+              id="cipher-key"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              maxlength="16"
+              placeholder="16 characters"
+            >
+          </div>
 
-          <label for="cipher-iv">Cipher IV</label>
-          <input
-            id="cipher-iv"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            maxlength="16"
-            placeholder="16 characters"
-          >
+          <div id="cipher-iv-row">
+            <label for="cipher-iv">Cipher IV</label>
+            <input
+              id="cipher-iv"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              maxlength="16"
+              placeholder="16 characters"
+            >
+          </div>
 
           <!--
             Shown only when the build carries a handshake key. What a device is greeted with is a property

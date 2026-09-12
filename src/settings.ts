@@ -99,9 +99,15 @@ export function adoptSupplied(values: Partial<Secrets>): void {
   };
 }
 
-/** Whether this build was given the constants. */
-export function shippedWithConstants(): boolean {
-  return shipped("cipherKey") && shipped("cipherIv") && shipped("bindKey");
+/**
+ * Whether the cipher pair is the build's own, so neither field need be shown.
+ *
+ * The pair rather than all three: the handshake key is a property of the device in front of somebody and
+ * stays on screen either way, while a cipher a build already holds is never something a person has to
+ * think about. Both halves of the pair together, because one without the other configures nothing.
+ */
+export function shippedCipher(): boolean {
+  return shipped("cipherKey") && shipped("cipherIv");
 }
 
 /** Whether something in the store is standing in for whatever the build carried. */
