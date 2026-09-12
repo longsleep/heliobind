@@ -129,11 +129,14 @@ jobs:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile --ignore-scripts
 
-      # `bun run build` and never `build:local`: the second compiles the constants in, which is the point
-      # when the copy is for your own phone and a disaster when the copy is an asset on a public release.
+      # `bun run build` and never `build:local` or `build:site-constants`: both compile constants in, which
+      # is right for one phone or for a page this project serves, and wrong for a file anybody downloads and
+      # hosts anywhere. `HELIOBIND_INLINE` is emptied rather than left unset so that nothing in the runner's
+      # environment can select a mode on this job's behalf.
       - name: Build
         env:
           BUILD_REF: ${{ github.ref_name }} (${{ github.sha }})
+          HELIOBIND_INLINE: ""
         run: bun run build
 
       - name: Archive the built site
