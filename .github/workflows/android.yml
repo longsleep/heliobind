@@ -1,4 +1,7 @@
-# Build the Android package.
+# Checks, and the Android package.
+#
+# The only workflow that runs on a push to `main`, so it is where lint, types and tests have to be: the
+# other two run on a tag, which is too late to learn that `main` is broken.
 #
 # The app is the same `dist/` that GitHub Pages serves, wrapped by Capacitor: the web build runs once and
 # both consume its output, so the APK cannot drift from the page.
@@ -8,7 +11,7 @@
 # a footnote to getting the thing to compile at all. Actions are pinned by commit, as in pages.yml: a tag
 # is mutable and moving one is the cheapest way to compromise a workflow.
 
-name: android
+name: CI
 
 on:
   push:
@@ -20,7 +23,22 @@ permissions:
   contents: read
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.4.0
+      # --frozen-lockfile so an install can never resolve to something new, and --ignore-scripts so
+      # nothing executes on install even if a package declares a lifecycle hook.
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun test
+
   apk:
+    needs: check
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
