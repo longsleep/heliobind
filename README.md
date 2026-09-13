@@ -13,8 +13,8 @@ is the vendor's own word for the ritual this replaces. It is the Bluetooth half 
 
 **A NEXA 2000 is what it is developed against, not what it is limited to.** The Bluetooth interface belongs
 to the datalogger rather than to the storage unit behind it, and that module is shared across the family.
-The datalogger reports which unit it sits in as a type code — 61 a NOAH 2000, 72 a NEXA 2000, 73 an
-AURA/NODE 5000, 83 a VETA 2200, as the vendor's own app maps them. The configuration space, the framing and
+The datalogger reports which unit it sits in as a type code — 61 a NOAH 2000, 66 a GroPlug, 72 a NEXA
+2000, 73 an AURA/NODE 5000, 83 a VETA 2200, as the vendor's own app maps them. The configuration space, the framing and
 the cipher are common to all of them, and the settings Heliobind writes belong to the datalogger, so they
 mean the same thing in every one of those units. Only a NEXA 2000 has been connected to.
 

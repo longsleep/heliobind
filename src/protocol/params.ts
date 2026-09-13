@@ -110,7 +110,7 @@ export const DEVICE_TYPE = readOnly(
   "device_type",
   "device",
   "The product. The same code the device advertises over Bluetooth, ahead of any connection.",
-  { 61: "NOAH 2000", 72: "NEXA 2000", 73: "AURA/NODE 5000", 83: "VETA 2200" },
+  { 61: "NOAH 2000", 66: "GroPlug", 72: "NEXA 2000", 73: "AURA/NODE 5000", 83: "VETA 2200" },
 );
 export const MAC_ADDRESS = readOnly(
   16,
