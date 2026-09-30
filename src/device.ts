@@ -23,6 +23,9 @@ import {
   writeConfigBody,
 } from "./protocol/frame.ts";
 import {
+  BATTERY_REGISTERS,
+  type Battery,
+  batteryFrom,
   modbusBody,
   parseRegisters,
   type Registers,
@@ -164,11 +167,10 @@ export class Device {
    * and it has been seen to differ between releases of the same product; {@link componentVersions} is how
    * a caller finds out which one it is talking to.
    *
-   * ⚠ **Unobserved.** No such exchange has ever been performed, on this transport or any other; the same
-   * function code on the MQTT transport is accepted and does nothing at all. The Bluetooth handler is
-   * separate code and is wired straight through to the Modbus master, which is the reason to expect this
-   * one to work — not evidence that it does. Read a holding register the other transport can also read
-   * before believing an input-register answer.
+   * Both spaces answer. A holding read was confirmed first against a register the MQTT transport reports
+   * for the same device, and input reads followed; {@link batteryReadings} is the one that needs no second
+   * transport to be believed. The same function code on MQTT is accepted and does nothing at all — the
+   * Bluetooth handler is separate code, wired straight through to the Modbus master.
    *
    * Reads only: {@link readPdu} builds no other function code.
    */
@@ -192,6 +194,21 @@ export class Device {
   async componentVersions(): Promise<Versions> {
     const answer = await this.readRegisters("input", VERSION_REGISTERS.start, VERSION_REGISTERS.count);
     return versionsFrom(answer.values);
+  }
+
+  /**
+   * The battery's cells and pack voltage, in a reply that proves itself.
+   *
+   * The one read on this transport whose answer can be believed without checking it against another: the
+   * pack voltage and the two cell voltages arrive together and must agree arithmetically, so a wrong codec
+   * cannot produce a consistent one. See {@link BATTERY_REGISTERS} for why that is worth a method.
+   *
+   * Use it when an answer looks wrong and the question is whether the device or this app is at fault. A
+   * refusal or silence is an answer too — an older sub-MCU image serves a shorter block.
+   */
+  async batteryReadings(): Promise<Battery> {
+    const answer = await this.readRegisters("input", BATTERY_REGISTERS.start, BATTERY_REGISTERS.count);
+    return batteryFrom(answer.values);
   }
 
   /**

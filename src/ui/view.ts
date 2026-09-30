@@ -59,6 +59,7 @@ export const dom = {
   registerCount: el<HTMLInputElement>("register-count"),
   registerRead: el<HTMLButtonElement>("register-read"),
   registerVersions: el<HTMLButtonElement>("register-versions"),
+  registerBattery: el<HTMLButtonElement>("register-battery"),
   deviceVersions: el<HTMLElement>("device-versions"),
   clearResult: el<HTMLButtonElement>("clear-result"),
   clearLog: el<HTMLButtonElement>("clear-log"),

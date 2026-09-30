@@ -1,7 +1,17 @@
 import { describe, expect, test } from "bun:test";
 
 import { ascii, toHex } from "./frame.ts";
-import { MAX_COUNT, ModbusError, modbusBody, parseRegisters, readPdu, versionsFrom } from "./modbus.ts";
+import {
+  BATTERY_REGISTERS,
+  batteryFrom,
+  CELL_TOLERANCE,
+  MAX_COUNT,
+  ModbusError,
+  modbusBody,
+  parseRegisters,
+  readPdu,
+  versionsFrom,
+} from "./modbus.ts";
 
 describe("readPdu", () => {
   test("builds the documented read of the paired-meter flag", () => {
@@ -92,5 +102,60 @@ describe("versionsFrom", () => {
 
   test("refuses a short answer rather than reporting a version of zero", () => {
     expect(() => versionsFrom([0x0e0c])).toThrow(ModbusError);
+  });
+});
+
+describe("batteryFrom", () => {
+  /** A reply shaped like the reference device's: 99 to 112, with the registers between them left as read. */
+  const block = (cellMax: number, cellMin: number, pack: number): number[] => {
+    const values = new Array<number>(BATTERY_REGISTERS.count).fill(0);
+    values[0] = cellMax; // 99
+    values[1] = cellMin; // 100
+    values[2] = 32; // 101, cycles
+    values[3] = 90; // 102, health
+    values[13] = pack; // 112
+    return values;
+  };
+
+  test("scales the block and calls a real reply consistent", () => {
+    // Taken from the device while discharging: 3.312 and 3.310 V a cell, 52.7 V a pack.
+    const battery = batteryFrom(block(3312, 3310, 527));
+    expect(battery.cellMax).toBeCloseTo(3.312, 3);
+    expect(battery.cellMin).toBeCloseTo(3.31, 3);
+    expect(battery.pack).toBeCloseTo(52.7, 1);
+    expect(battery.cycles).toBe(32);
+    expect(battery.health).toBe(90);
+    expect(battery.consistent).toBe(true);
+  });
+
+  test("the ratio sits just under one, and that is the reply being right", () => {
+    // The mean of the highest and lowest cell overstates the mean cell, so a correct reply lands near
+    // 0.996 rather than on 1. A test asserting 1.000 would fail against the device.
+    const battery = batteryFrom(block(3312, 3310, 527));
+    expect(battery.ratio).toBeGreaterThan(1 - CELL_TOLERANCE);
+    expect(battery.ratio).toBeLessThan(1);
+  });
+
+  test("a misparsed pack voltage is caught", () => {
+    // What a byte-swapped or wrongly scaled 112 would look like. The check exists for exactly this: the
+    // cells and the pack disagree, so the reply is wrong whatever the battery is doing.
+    expect(batteryFrom(block(3312, 3310, 5270)).consistent).toBe(false);
+    expect(batteryFrom(block(3312, 3310, 52)).consistent).toBe(false);
+  });
+
+  test("refuses a short reply rather than reading past it", () => {
+    expect(() => batteryFrom([3312, 3310, 32])).toThrow(ModbusError);
+  });
+
+  test("a pack reading of zero is inconsistent, not a division by zero", () => {
+    expect(batteryFrom(block(0, 0, 0)).ratio).toBe(0);
+    expect(batteryFrom(block(0, 0, 0)).consistent).toBe(false);
+  });
+
+  test("the range stays within what this app will ask for", () => {
+    expect(BATTERY_REGISTERS.count).toBeLessThanOrEqual(MAX_COUNT);
+    // 99 and 100 are the cells, 112 the pack: the range has to span them and is the shortest that does.
+    expect(BATTERY_REGISTERS.start).toBe(99);
+    expect(BATTERY_REGISTERS.start + BATTERY_REGISTERS.count - 1).toBe(112);
   });
 });

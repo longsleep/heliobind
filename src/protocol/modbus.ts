@@ -222,6 +222,78 @@ export function versionsFrom(values: readonly number[]): Versions {
   };
 }
 
+/**
+ * A read whose answer checks itself, which is what makes it worth having on this transport.
+ *
+ * Registers 99 and 100 are the highest and lowest cell voltage in millivolts, and 112 is the pack voltage
+ * in tenths of a volt. A pack is sixteen cells in series, so the third is sixteen times the mean of the
+ * first two — and all three arrive in **one reply**, so the reply is checkable without a second transport
+ * to compare it against.
+ *
+ * That matters here more than it would elsewhere. A PDU whose inner checksum is wrong is *dropped* by the
+ * sub-MCU rather than refused, so a codec bug presents exactly as an unresponsive device does. A reply that
+ * proves itself arithmetically separates the two: values that agree cannot have come from a frame this app
+ * built wrongly.
+ *
+ * Fourteen registers rather than three because Modbus reads a range, and 99 to 112 is the shortest range
+ * containing all of them. It stays under {@link MAX_COUNT}.
+ */
+export const BATTERY_REGISTERS = { start: 99, count: 14 } as const;
+
+/** How far the pack voltage may sit from sixteen cells before the reply is called inconsistent. */
+export const CELL_TOLERANCE = 0.02;
+
+/** Cells in series. Established from the capture set, not read from the device. */
+const CELLS = 16;
+
+/** What {@link BATTERY_REGISTERS} carries, scaled, with the check applied. */
+export interface Battery {
+  /** Highest cell, volts. */
+  readonly cellMax: number;
+  /** Lowest cell, volts. */
+  readonly cellMin: number;
+  /** The pack, volts. */
+  readonly pack: number;
+  /** Charge/discharge cycles the battery reports. */
+  readonly cycles: number;
+  /** State of health, percent. */
+  readonly health: number;
+  /** `pack ÷ (16 × mean cell)`. One when the reply is self-consistent. */
+  readonly ratio: number;
+  /** Whether {@link ratio} is within {@link CELL_TOLERANCE}. */
+  readonly consistent: boolean;
+}
+
+/**
+ * Scale {@link BATTERY_REGISTERS} and check the reply against itself.
+ *
+ * The ratio lands near 0.996 rather than exactly 1 on a healthy reply: the mean of the *highest and lowest*
+ * cell is not quite the mean cell. That is a property of which two registers the device publishes, not an
+ * error, and {@link CELL_TOLERANCE} is wide enough to cover it and far too narrow to admit a misparse.
+ */
+export function batteryFrom(values: readonly number[]): Battery {
+  if (values.length < BATTERY_REGISTERS.count) {
+    throw new ModbusError(`expected ${BATTERY_REGISTERS.count} registers, got ${values.length}`);
+  }
+  const at = (register: number): number => values[register - BATTERY_REGISTERS.start]!;
+
+  const cellMax = at(99) / 1000;
+  const cellMin = at(100) / 1000;
+  const pack = at(112) / 10;
+  const expected = ((cellMax + cellMin) / 2) * CELLS;
+  const ratio = expected === 0 ? 0 : pack / expected;
+
+  return {
+    cellMax,
+    cellMin,
+    pack,
+    cycles: at(101),
+    health: at(102),
+    ratio,
+    consistent: Math.abs(ratio - 1) <= CELL_TOLERANCE,
+  };
+}
+
 function hex8(value: number): string {
   return `0x${value.toString(16).padStart(2, "0")}`;
 }
