@@ -18,10 +18,10 @@
 
 import { BleClient, type BleDevice, numbersToDataView } from "@capacitor-community/bluetooth-le";
 import type { Bytes } from "../protocol/frame.ts";
-import { assemble, BleError, type Link, type Route, SERVICE, UUID, VENDOR } from "./link.ts";
+import { assemble, BleError, type Link, MARKERS, type Route, SERVICE, UUID } from "./link.ts";
 
 export type { Link, Route } from "./link.ts";
-export { BleError, SERVICE, UUID, VENDOR } from "./link.ts";
+export { BleError, MARKERS, SERVICE, UUID } from "./link.ts";
 
 /** A device somebody picked. Android hands back an identifier — the MAC — rather than an object. */
 export type Chosen = BleDevice;
@@ -62,13 +62,11 @@ export async function choose(): Promise<Chosen> {
     // device. It is the cost of the marker filter not being reliable on Android, and being able to
     // connect at all is worth a longer list.
     services: [UUID.service],
-    manufacturerData: [
-      {
-        companyIdentifier: VENDOR,
-        dataPrefix: new Uint8Array([0]),
-        mask: new Uint8Array([0]),
-      },
-    ],
+    manufacturerData: MARKERS.map((companyIdentifier) => ({
+      companyIdentifier,
+      dataPrefix: new Uint8Array([0]),
+      mask: new Uint8Array([0]),
+    })),
   });
 }
 

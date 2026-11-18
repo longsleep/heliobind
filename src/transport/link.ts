@@ -11,7 +11,7 @@
 
 import { type Bytes, declaredLength, looksLikeFrame } from "../protocol/frame.ts";
 
-/** Vendor service. Needed to reach the characteristics, and on its own not distinctive — see {@link VENDOR}. */
+/** Vendor service. Needed to reach the characteristics, and on its own not distinctive — see {@link MARKERS}. */
 export const SERVICE = 0x00ff;
 
 /**
@@ -24,13 +24,17 @@ export const SERVICE = 0x00ff;
  * The manufacturer data is ASCII rather than binary — `G:72#0HVR`, being a device-type code and the first
  * four characters of the serial. A Bluetooth stack reads the leading two octets as a little-endian company
  * identifier, so `47 3a` — `G:` — becomes `0x3A47`, a value far outside the assigned range that no real
- * vendor holds. Phantom or not, it is a stable two-octet marker every device of the family emits, and it
- * is what makes a filter selective.
+ * vendor holds. Phantom or not, it is a two-octet marker every device of the family emits, and it is what
+ * makes a filter selective.
+ *
+ * **The letter's case is a state, not a constant.** The firmware writes `G` while the device's handshake
+ * key differs from the published default — an account has bound it — and `g`, read as `0x3A67`, while it
+ * holds the default. A filter on one case loses every device in the other state, so both are listed.
  *
  * What is deliberately *not* matched is the device-type code that follows, so an unannounced model of the
  * family is still offered rather than silently excluded.
  */
-export const VENDOR = 0x3a47;
+export const MARKERS = [0x3a47, 0x3a67] as const;
 
 /**
  * The UUIDs, spelled out. Web Bluetooth accepts a 16-bit number for the service, but the characteristics

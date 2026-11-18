@@ -7,7 +7,7 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { choose, SERVICE, VENDOR } from "./web.ts";
+import { choose, SERVICE } from "./web.ts";
 
 const original = Reflect.getOwnPropertyDescriptor(globalThis, "navigator");
 
@@ -43,10 +43,19 @@ describe("choosing a device", () => {
     const chooser = stubChooser();
     await choose();
 
-    const filters = chooser.asked();
-    expect(filters).toHaveLength(1);
-    expect(filters?.[0]?.services).toEqual([SERVICE]);
-    expect(filters?.[0]?.manufacturerData).toEqual([{ companyIdentifier: VENDOR }]);
+    for (const filter of chooser.asked() ?? []) {
+      expect(filter.services).toEqual([SERVICE]);
+      expect(filter.manufacturerData).toHaveLength(1);
+    }
+  });
+
+  test("offers the device whichever case its marker is in", async () => {
+    // `G:` while an account key is set, `g:` while the device holds the default. A filter on one lost the other.
+    const chooser = stubChooser();
+    await choose();
+
+    const markers = chooser.asked()?.map((filter) => filter.manufacturerData?.[0]?.companyIdentifier);
+    expect(markers).toEqual([0x3a47, 0x3a67]);
   });
 
   test("does not filter on the device-type code", async () => {

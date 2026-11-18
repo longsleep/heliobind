@@ -10,10 +10,10 @@
  */
 
 import type { Bytes } from "../protocol/frame.ts";
-import { assemble, BleError, type Link, type Route, SERVICE, UUID, VENDOR } from "./link.ts";
+import { assemble, BleError, type Link, MARKERS, type Route, SERVICE, UUID } from "./link.ts";
 
 export type { Link, Route } from "./link.ts";
-export { BleError, SERVICE, UUID, VENDOR } from "./link.ts";
+export { BleError, MARKERS, SERVICE, UUID } from "./link.ts";
 
 /** A device somebody picked. The browser hands back an object; Android hands back an identifier. */
 export type Chosen = BluetoothDevice;
@@ -34,7 +34,8 @@ export function isSupported(): boolean {
  *
  * Both conditions have to hold: the service to reach the characteristics, and the manufacturer-data marker
  * to make the offer specific. Requiring only the service listed foreign hardware that shares Espressif's
- * example UUID — see {@link VENDOR}.
+ * example UUID — see {@link MARKERS}. One filter per marker, because conditions inside a filter must all
+ * match while separate filters are alternatives, and the marker comes in two cases.
  *
  * `optionalServices` is still needed after the filter: matching an advertisement grants nothing, and the
  * service must be declared for `getPrimaryService` to be allowed to reach it.
@@ -42,7 +43,10 @@ export function isSupported(): boolean {
 export async function choose(): Promise<Chosen> {
   if (!isSupported()) throw new BleError("this browser does not support Web Bluetooth");
   return navigator.bluetooth.requestDevice({
-    filters: [{ services: [SERVICE], manufacturerData: [{ companyIdentifier: VENDOR }] }],
+    filters: MARKERS.map((companyIdentifier) => ({
+      services: [SERVICE],
+      manufacturerData: [{ companyIdentifier }],
+    })),
     optionalServices: [SERVICE],
   });
 }
