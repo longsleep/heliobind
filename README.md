@@ -51,15 +51,15 @@ by definition, one the device cannot reach yet.
 
 Chrome offers the install in the address bar, or under ⋮ → Cast, save and share → Install page as app.
 
-Heliobind cannot reach a device until it has the three constants below. The published page carries two of
-them; the third is the handshake key, and the section below says where yours comes from.
+Heliobind cannot reach a device until it has the three constants below. The published page carries all
+three, the default handshake key included, so there is nothing to enter for a device that still holds it.
 
 ### On Android, as a package
 
 **→ [Releases](https://github.com/longsleep/heliobind/releases)** — `heliobind-<version>.apk`.
 
-**It carries a default handshake key as well as the cipher, so there is nothing to enter at all.** The
-block below is then a checkbox rather than a form: tick it and connect. A device that refuses that key is
+**Like the published page, it carries the cipher and a default handshake key, so there is nothing to
+enter at all.** The block below is then a checkbox rather than a form: tick it and connect. A device that refuses that key is
 what the IoT button is for, further down.
 
 ## Requirements
@@ -76,23 +76,26 @@ rather than failing at the first tap.
 
 Served over HTTPS, or from `localhost`. Web Bluetooth requires a secure context.
 
-**Three constants.** The published page supplies two; the third depends on your device. See below.
+**Three constants.** The published page supplies all three; which handshake key your device wants depends on
+its history. See below.
 
 ## The constants
 
 The Bluetooth interface needs three values, none of them in this repository: a cipher key, a cipher IV, and
 the handshake key a device is greeted with. Until all three are present, nothing connects.
 
-**The cipher pair belongs to the protocol**, not to any one device, and the published page and the Android
-package both carry it. Nothing to enter and nothing on screen for it.
+**The cipher pair belongs to the protocol**, not to any one device, and the published page, the release
+archive and the Android package all carry it. Nothing to enter and nothing on screen for it.
 
-**The handshake key belongs to a device**, so no build can know yours. It is the one value the app asks
-for, under **Protocol constants**, and it is kept in the browser's own storage and typed once. Which value
-your device wants depends on its history — see below.
+**The handshake key belongs to a device.** Those builds carry the vendor's default, which a device holds
+until the vendor's application binds it to an account, and which the IoT button puts back. Where your
+device wants something else, enter it under **Protocol constants**; it is kept in the browser's own storage
+and typed once. Which value your device wants depends on its history — see below.
 
-All three are recoverable from the vendor's Android application by anyone willing to decompile it, which is
-why carrying the cipher pair gives up nothing that was not already public. The handshake key is different
-in kind: yours is not a constant at all in a device the vendor's application has set up.
+All three are recoverable from the vendor's Android application and have been published elsewhere, so
+carrying them gives up nothing that is not already public. The CI builds take them from repository secrets;
+a build without them — a fork's, or a plain `bun run build` — asks for all three. What does stay private
+is an account's token: yours is not a constant at all in a device the vendor's application has set up.
 
 > Anything you enter is stored in that browser profile and never leaves the device — the app makes no
 > network requests at all, which its content security policy enforces rather than promises. On a shared
@@ -109,8 +112,9 @@ What a device expects depends on whether the vendor's application has ever set i
 | Set up with an account you no longer have access to | press the IoT button |
 | After a 3 to 10 second IoT button press | **Use default handshake key** |
 
-**Use default handshake key** is offered only by a build that was given the default to carry. Where the
-checkbox is absent, the build has no key of its own, and every row above that names it means typing the
+**Use default handshake key** is offered only by a build that was given the default to carry — the
+published page, the release archive and the Android package. Where the checkbox is absent, the build has no
+key of its own, and every row above that names it means typing the
 value into **Key presented on connecting** instead — the same field the other rows use.
 
 A device that has been through the vendor's application holds that account's token in register 54, and it
@@ -240,8 +244,8 @@ bun run build:local  # the same, with the protocol constants compiled in
 ```
 
 `build` never compiles the constants in, even with `.env.local` present, and fails if one reaches the
-output by any other route. `build:local` is the opt-in for a copy you install on your own phone — do not
-publish what it produces.
+output by any other route. `build:local` is the opt-in, and what CI uses for the published page and the
+release archive.
 
 ### Testing on a phone
 
