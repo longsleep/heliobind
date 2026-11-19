@@ -1,7 +1,7 @@
 {
   "name": "Heliobind",
   "short_name": "Heliobind",
-  "description": "Unofficial Wi-Fi and server setup for a Growatt NEXA 2000, over Bluetooth. An independent project, not affiliated with Growatt.",
+  "description": "Unofficial Wi-Fi and server setup for a Growatt NEXA 2000 or NOAH 2000, over Bluetooth. An independent project, not affiliated with Growatt.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

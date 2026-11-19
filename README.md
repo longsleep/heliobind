@@ -4,8 +4,8 @@
 [![GitHub Release](https://img.shields.io/github/v/release/longsleep/heliobind?include_prereleases&logo=github)](https://github.com/longsleep/heliobind/releases)
 [![License](https://img.shields.io/github/license/longsleep/heliobind)](LICENSE)
 
-Wi-Fi and server setup for a Growatt NEXA 2000, over Bluetooth — from a browser, standing next to the
-device, with no vendor app, no account and no network.
+Wi-Fi and server setup for a Growatt NEXA 2000 or NOAH 2000, over Bluetooth — from a browser, standing
+next to the device, with no vendor app, no account and no network.
 
 Named for what it does: the datalogger calls its handshake credential the _bind key_, and binding a device
 is the vendor's own word for the ritual this replaces. It is the Bluetooth half of
@@ -16,7 +16,14 @@ to the datalogger rather than to the storage unit behind it, and that module is 
 The datalogger reports which unit it sits in as a type code — 61 a NOAH 2000, 66 a GroPlug, 72 a NEXA
 2000, 73 an AURA/NODE 5000, 83 a VETA 2200, as the vendor's own app maps them. The configuration space, the framing and
 the cipher are common to all of them, and the settings Heliobind writes belong to the datalogger, so they
-mean the same thing in every one of those units. Only a NEXA 2000 has been connected to.
+mean the same thing in every one of those units. A NEXA 2000 is the one it is built against; NOAH 2000
+owners have since connected, authenticated and read its registers with it. The other types have not been
+tried.
+
+**The registers behind the datalogger are per model.** _Component versions_ knows where the NEXA 2000 and
+the NOAH 2000 keep theirs, and the _Battery self-check_ is NEXA-only: on a NOAH nothing among the known
+registers is the pack voltage it compares against. A register a model does not serve is reported as not
+served.
 
 **It reads everything and changes three things.** Discovery, connection and a read of any configuration
 parameter; and writes for the settings that decide whether the device can be reached at all — the Wi-Fi

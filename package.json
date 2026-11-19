@@ -1,7 +1,7 @@
 {
   "name": "heliobind",
   "version": "0.4.1",
-  "description": "Wi-Fi and server setup for a Growatt NEXA 2000, over Bluetooth, from a browser",
+  "description": "Wi-Fi and server setup for a Growatt NEXA 2000 or NOAH 2000, over Bluetooth, from a browser",
   "license": "Apache-2.0",
   "author": "Simon Eisenmann",
   "homepage": "https://github.com/longsleep/heliobind#readme",
