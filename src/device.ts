@@ -26,16 +26,25 @@ import {
   BATTERY_REGISTERS,
   type Battery,
   batteryFrom,
+  type Model,
   modbusBody,
+  modelOf,
   parseRegisters,
   type Registers,
   readPdu,
   type Space,
-  VERSION_REGISTERS,
+  VERSION_READS,
   type Versions,
   versionsFrom,
 } from "./protocol/modbus.ts";
-import { BLE_HANDSHAKE_KEY, batches, describe, everyParam, isWritable } from "./protocol/params.ts";
+import {
+  BLE_HANDSHAKE_KEY,
+  batches,
+  DEVICE_TYPE,
+  describe,
+  everyParam,
+  isWritable,
+} from "./protocol/params.ts";
 import { accepted, parseResponse, type Response } from "./protocol/response.ts";
 import type { Link, Route } from "./transport/link.ts";
 
@@ -65,6 +74,9 @@ export class AuthenticationError extends DeviceError {
 }
 
 export class Device {
+  /** The model, once asked: it decides which registers mean what, and it does not change mid-session. */
+  private known: Model | undefined;
+
   private constructor(
     private readonly connection: Link,
     /** The serial the device reported during the handshake — ten characters, its own rather than ours. */
@@ -189,11 +201,13 @@ export class Device {
    * ⚠ **Which firmware serves this is itself version-dependent.** 119 and 120 are the last two registers
    * the reference device answers for — 121 draws nothing — and an older sub-MCU image stops at 117, so a
    * device running that one would refuse this read. A refusal is therefore an outcome worth reporting
-   * rather than a fault.
+   * rather than a fault. Where the read starts depends on the model; see {@link VERSION_READS}.
    */
   async componentVersions(): Promise<Versions> {
-    const answer = await this.readRegisters("input", VERSION_REGISTERS.start, VERSION_REGISTERS.count);
-    return versionsFrom(answer.values);
+    const model = await this.model();
+    const { start, count } = VERSION_READS[model];
+    const answer = await this.readRegisters("input", start, count);
+    return versionsFrom(answer.values, model);
   }
 
   /**
@@ -207,8 +221,29 @@ export class Device {
    * refusal or silence is an answer too — an older sub-MCU image serves a shorter block.
    */
   async batteryReadings(): Promise<Battery> {
+    const model = await this.model();
+    if (model !== "nexa") {
+      throw new DeviceError(
+        "not available on a NOAH 2000: its pack voltage is not among the registers known",
+      );
+    }
     const answer = await this.readRegisters("input", BATTERY_REGISTERS.start, BATTERY_REGISTERS.count);
     return batteryFrom(answer.values);
+  }
+
+  /**
+   * Which model this is, from the device type it reports (parameter 13), asked once per session.
+   *
+   * @throws {DeviceError} for a type whose registers are not known here.
+   */
+  async model(): Promise<Model> {
+    if (this.known) return this.known;
+    const response = await this.read([DEVICE_TYPE.number]);
+    const reported = response.values.find((value) => value.param === DEVICE_TYPE.number)?.value ?? "";
+    const model = modelOf(Number(reported));
+    if (!model) throw new DeviceError(`no register map is known for device type ${JSON.stringify(reported)}`);
+    this.known = model;
+    return model;
   }
 
   /**

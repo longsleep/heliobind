@@ -5,7 +5,7 @@
  * *configuration* parameters; this addresses the component behind it, holding and input, by handing a
  * complete Modbus request to the datalogger, which passes it to that component untouched and hands the raw
  * answer back. Which registers exist and what they hold is that component's firmware's business, not this
- * module's — see {@link VERSION_REGISTERS}.
+ * module's — see {@link VERSION_READS}.
  *
  * ```text
  * request body   <serial: 10 ASCII> <pdu length: 2 BE> <pdu>
@@ -95,6 +95,15 @@ const SERIAL_LEN = 10;
 export class ModbusError extends Error {}
 
 /**
+ * The datalogger answered, but with no register data: nothing behind it served the read.
+ *
+ * A NOAH 2000 says so explicitly — its serial, a declared PDU length of zero, and nothing after — where the
+ * NEXA 2000 sends no reply at all. Either way the start register is not one the component serves, which is
+ * a fact about the model and its firmware rather than a fault in the request.
+ */
+export class NotServedError extends ModbusError {}
+
+/**
  * The PDU for a read, checksum included.
  *
  * The checksum is little-endian — see the module documentation for why that is worth stating twice.
@@ -151,6 +160,11 @@ export interface Registers {
  * it had got wrong in one glance.
  */
 export function parseRegisters(body: Bytes, start: number): Registers {
+  if (body.length === SERIAL_LEN + 2 && readU16(body, SERIAL_LEN) === 0) {
+    throw new NotServedError(
+      `register ${start} is not served on this model: the reply carries no register data`,
+    );
+  }
   if (body.length < SERIAL_LEN + 2 + 5) {
     throw new ModbusError(`reply is ${body.length} octets, too short to carry an answer: ${toHex(body)}`);
   }
@@ -189,41 +203,55 @@ export function parseRegisters(body: Bytes, start: number): Registers {
   return { serial, start, values, pdu };
 }
 
-/**
- * Where the sub-MCUs report their own firmware versions: two registers, four octets, four components.
- *
- * Both are served and both answer: the reference device reports inverter 14, MPPT 12, PD 14, BMS 11, the
- * same values its telemetry frame carries at those positions. 120 is the last register the sub-MCU serves
- * before the gap — 121 draws no reply — so this reads the very top of the block.
- */
-export const VERSION_REGISTERS = { start: 119, count: 2 } as const;
+/** The models whose register maps this module knows, keyed by the device type code (parameter 13). */
+export type Model = "nexa" | "noah";
 
-/** What each component reports as its own firmware version. */
+/** The model a device type code names, if its registers are known here. */
+export function modelOf(deviceType: number): Model | undefined {
+  if (deviceType === 72) return "nexa";
+  if (deviceType === 61) return "noah";
+  return undefined;
+}
+
+/**
+ * Where each model's sub-MCUs report their own firmware versions: registers 119 and 120, one octet per
+ * component.
+ *
+ * The NEXA 2000 answers a read starting at 119; it reports inverter 14, MPPT 12, PD 14, BMS 11, the same
+ * values its telemetry frame carries at those positions, and 121 draws no reply. The NOAH 2000 does not serve
+ * a read that *starts* at 119 or 110, only one starting at 105, so its versions come at the end of a
+ * sixteen-register read. Its first octet is zero: it has no inverter.
+ */
+export const VERSION_READS = {
+  nexa: { start: 119, count: 2 },
+  noah: { start: 105, count: 16 },
+} as const satisfies Record<Model, { start: number; count: number }>;
+
+/** What each component reports as its own firmware version. A NOAH has no inverter. */
 export interface Versions {
-  readonly inverter: number;
+  readonly inverter?: number;
   readonly mppt: number;
   readonly pd: number;
   readonly bms: number;
 }
 
 /**
- * Split the two version registers into their four components.
+ * Split registers 119 and 120 into their components.
  *
- * High octet then low: 119 is the inverter and the MPPT, 120 is the power controller and the BMS.
+ * High octet then low: 119 is the inverter and the MPPT, 120 is the power controller and the BMS. They are
+ * the last two values of either model's read.
  */
-export function versionsFrom(values: readonly number[]): Versions {
-  if (values.length < 2) throw new ModbusError(`expected two version registers, got ${values.length}`);
-  const [first, second] = values as [number, number];
-  return {
-    inverter: (first >>> 8) & 0xff,
-    mppt: first & 0xff,
-    pd: (second >>> 8) & 0xff,
-    bms: second & 0xff,
-  };
+export function versionsFrom(values: readonly number[], model: Model): Versions {
+  const { count } = VERSION_READS[model];
+  if (values.length < count) throw new ModbusError(`expected ${count} registers, got ${values.length}`);
+  const first = values[count - 2]!;
+  const second = values[count - 1]!;
+  const rest = { mppt: first & 0xff, pd: (second >>> 8) & 0xff, bms: second & 0xff };
+  return model === "noah" ? rest : { inverter: (first >>> 8) & 0xff, ...rest };
 }
 
 /**
- * A read whose answer checks itself, which is what makes it worth having on this transport.
+ * A read whose answer checks itself, which is what makes it worth having on this transport. NEXA 2000 only.
  *
  * Registers 99 and 100 are the highest and lowest cell voltage in millivolts, and 112 is the pack voltage
  * in tenths of a volt. A pack is sixteen cells in series, so the third is sixteen times the mean of the
@@ -237,6 +265,11 @@ export function versionsFrom(values: readonly number[]): Versions {
  *
  * Fourteen registers rather than three because Modbus reads a range, and 99 to 112 is the shortest range
  * containing all of them. It stays under {@link MAX_COUNT}.
+ *
+ * A NOAH 2000 answers the same read with its cells at 99 and 100 but 112 at zero, and nothing in the range
+ * is its pack: 109 held 50.20 V on two reads while sixteen cells summed to 53.6 V, which is the DC output
+ * to the micro-inverter (40–50 V by the datasheet) rather than the battery. So the check has nothing to
+ * compare there and is not offered.
  */
 export const BATTERY_REGISTERS = { start: 99, count: 14 } as const;
 

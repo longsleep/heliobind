@@ -560,7 +560,8 @@ async function readVersions(): Promise<void> {
   await whileBusy([dom.registerVersions], async () => {
     try {
       const versions = await session.componentVersions();
-      const text = `inverter ${versions.inverter}, MPPT ${versions.mppt}, PD ${versions.pd}, BMS ${versions.bms}`;
+      const inverter = versions.inverter === undefined ? "" : `inverter ${versions.inverter}, `;
+      const text = `${inverter}MPPT ${versions.mppt}, PD ${versions.pd}, BMS ${versions.bms}`;
       dom.deviceVersions.textContent = text;
       appendResult(`components: ${text}`);
       log(`component versions: ${text}`);

@@ -8,8 +8,11 @@ import {
   MAX_COUNT,
   ModbusError,
   modbusBody,
+  modelOf,
+  NotServedError,
   parseRegisters,
   readPdu,
+  VERSION_READS,
   versionsFrom,
 } from "./modbus.ts";
 
@@ -87,6 +90,14 @@ describe("parseRegisters", () => {
     expect(() => parseRegisters(reply([0x01, 0x83, 0x02, 0xc0, 0xf1]), 322)).toThrow(/refused/);
   });
 
+  test("reports an answer with no register data as not served", () => {
+    // What a NOAH 2000 sends for a start register nothing behind its datalogger serves: its serial, a
+    // declared PDU length of zero, and nothing after.
+    const empty = new Uint8Array([0x30, 0x50, 0x56, 0x50, 0x43, 0x30, 0x45, 0x44, 0x33, 0x35, 0x00, 0x00]);
+    expect(() => parseRegisters(empty, 119)).toThrow(NotServedError);
+    expect(() => parseRegisters(empty, 119)).toThrow(/not served/);
+  });
+
   test("keeps the octets of a reply it cannot read", () => {
     // The whole body in the message, because the first reply nobody has seen is evidence.
     expect(() => parseRegisters(reply([0x01, 0x03]), 322)).toThrow(/30 45 58 41/);
@@ -94,14 +105,40 @@ describe("parseRegisters", () => {
 });
 
 describe("versionsFrom", () => {
-  test("splits the two registers into four components", () => {
+  test("splits a NEXA's two registers into four components", () => {
     // 0x0e0c and 0x0e0b, which is what the reference device reports through its telemetry frame:
     // inverter 14, MPPT 12, PD 14, BMS 11.
-    expect(versionsFrom([0x0e0c, 0x0e0b])).toEqual({ inverter: 14, mppt: 12, pd: 14, bms: 11 });
+    expect(versionsFrom([0x0e0c, 0x0e0b], "nexa")).toEqual({ inverter: 14, mppt: 12, pd: 14, bms: 11 });
+  });
+
+  test("takes a NOAH's versions from the end of its read, with no inverter", () => {
+    // A NOAH 2000's reply to input 105 x 16: 119 = 0x0013 and 120 = 0x140e, MPPT 19, PD 20, BMS 14. The PD
+    // matches the vendor's PP2110.20 campaign file for that model.
+    const values = new Array<number>(16).fill(0);
+    values[4] = 5020; // 109, the DC output
+    values[14] = 0x0013;
+    values[15] = 0x140e;
+    expect(versionsFrom(values, "noah")).toEqual({ mppt: 19, pd: 20, bms: 14 });
   });
 
   test("refuses a short answer rather than reporting a version of zero", () => {
-    expect(() => versionsFrom([0x0e0c])).toThrow(ModbusError);
+    expect(() => versionsFrom([0x0e0c], "nexa")).toThrow(ModbusError);
+    expect(() => versionsFrom([0x0013, 0x140e], "noah")).toThrow(ModbusError);
+  });
+
+  test("every model's read stays within what this app will ask for and ends at 120", () => {
+    for (const { start, count } of Object.values(VERSION_READS)) {
+      expect(count).toBeLessThanOrEqual(MAX_COUNT);
+      expect(start + count - 1).toBe(120);
+    }
+  });
+});
+
+describe("modelOf", () => {
+  test("knows the NEXA and the NOAH by type code, and nothing else", () => {
+    expect(modelOf(72)).toBe("nexa");
+    expect(modelOf(61)).toBe("noah");
+    expect(modelOf(66)).toBeUndefined();
   });
 });
 
