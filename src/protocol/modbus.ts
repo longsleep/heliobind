@@ -251,11 +251,15 @@ export function versionsFrom(values: readonly number[], model: Model): Versions 
 }
 
 /**
- * A read whose answer checks itself, which is what makes it worth having on this transport. NEXA 2000 only.
+ * The battery's readings, and on a NEXA 2000 a read whose answer checks itself — which is what makes it
+ * worth having on this transport.
  *
- * Registers 99 and 100 are the highest and lowest cell voltage in millivolts, and 112 is the inverter's DC
- * input voltage in tenths of a volt. **While the battery carries current that input is the pack**, sixteen
- * cells in series, so the third is sixteen times the mean of the first two — and all three arrive in **one
+ * Registers 99 and 100 are the highest and lowest cell voltage in millivolts, 101 the cycles and 102 the
+ * state of health, the same on both models. The pack is sixteen cells in series, so its voltage is sixteen
+ * times the mean of the two cells.
+ *
+ * On a NEXA, 112 is the inverter's DC input voltage in tenths of a volt. **While the battery carries current
+ * that input is the pack**, so it must equal sixteen times the mean cell — and all three arrive in **one
  * reply**, so the reply is checkable without a second transport to compare it against.
  *
  * That matters here more than it would elsewhere. A PDU whose inner checksum is wrong is *dropped* by the
@@ -264,21 +268,21 @@ export function versionsFrom(values: readonly number[], model: Model): Versions 
  * built wrongly.
  *
  * **While the battery idles, 112 floats** — seen swinging between 18 and 58 V every few seconds while the
- * cells sat at 52.6 V — so there is nothing to check, and the pack voltage is taken from the cells instead.
- * The battery current, register 118, says which case it is; 99 to 118 is more than {@link MAX_COUNT}, so it
- * is a second, one-register read ({@link BATTERY_CURRENT}).
+ * cells sat at 52.6 V — so there is nothing to check. The battery current, register 118, says which case it
+ * is; 99 to 118 is more than {@link MAX_COUNT}, so it is a second, one-register read
+ * ({@link BATTERY_CURRENT}).
  *
- * Fourteen registers rather than three because Modbus reads a range, and 99 to 112 is the shortest range
+ * Fourteen registers rather than four because Modbus reads a range, and 99 to 112 is the shortest range
  * containing all of them. It stays under {@link MAX_COUNT}.
  *
- * A NOAH 2000 answers the same read with its cells at 99 and 100 but 112 at zero, and nothing in the range
- * is its pack: 109 held 50.20 V on two reads while sixteen cells summed to 53.6 V, which is the DC output
- * to the micro-inverter (40–50 V by the datasheet) rather than the battery. So the check has nothing to
- * compare there and is not offered.
+ * A NOAH 2000 has no inverter: it answers the same read with its cells, cycles and health in place but 112
+ * at zero, and 118 at zero too. Nothing in the range stands in for the inverter's input: 109 held 50.20 V on
+ * two reads while sixteen cells summed to 53.6 V, which is the DC output to the micro-inverter (40–50 V by
+ * the datasheet) rather than the battery. So a NOAH gets the readings and no check.
  */
 export const BATTERY_REGISTERS = { start: 99, count: 14 } as const;
 
-/** The battery current, tenths of an amp on a 30 000 offset, positive while charging. */
+/** The battery current, tenths of an amp on a 30 000 offset, positive while charging. NEXA 2000 only. */
 export const BATTERY_CURRENT = 118;
 
 /**
@@ -295,7 +299,7 @@ export const CELL_TOLERANCE = 0.02;
 /** Cells in series. Established from the capture set, not read from the device. */
 const CELLS = 16;
 
-/** What {@link BATTERY_REGISTERS} and {@link BATTERY_CURRENT} carry, scaled, with the check applied. */
+/** What {@link BATTERY_REGISTERS} carries, scaled, with the check applied where the model allows one. */
 export interface Battery {
   /** Highest cell, volts. */
   readonly cellMax: number;
@@ -303,15 +307,21 @@ export interface Battery {
   readonly cellMin: number;
   /** The pack, volts: sixteen times the mean of the two cells. */
   readonly pack: number;
-  /** The inverter's DC input, volts. The pack voltage only while current flows. */
-  readonly inverterInput: number;
-  /** Battery current, amps, positive while charging. */
-  readonly current: number;
   /** Charge/discharge cycles the battery reports. */
   readonly cycles: number;
   /** State of health, percent. */
   readonly health: number;
-  /** `inverterInput ÷ pack`. One when the reply is self-consistent and the battery carries current. */
+  /** The self-check, or `undefined` on a model with no inverter input to check the cells against. */
+  readonly check: BatteryCheck | undefined;
+}
+
+/** The inverter's input against the cells. NEXA 2000 only. */
+export interface BatteryCheck {
+  /** The inverter's DC input, volts. The pack voltage only while current flows. */
+  readonly inverterInput: number;
+  /** Battery current, amps, positive while charging. */
+  readonly current: number;
+  /** `inverterInput ÷ pack`. Near one when the reply is self-consistent and the battery carries current. */
   readonly ratio: number;
   /**
    * Whether {@link ratio} is within {@link CELL_TOLERANCE}, or `undefined` while the battery idles and the
@@ -321,15 +331,15 @@ export interface Battery {
 }
 
 /**
- * Scale {@link BATTERY_REGISTERS} and {@link BATTERY_CURRENT}, and check the reply against itself where the
- * battery's state allows it.
+ * Scale {@link BATTERY_REGISTERS}, and with the raw {@link BATTERY_CURRENT} check the reply against itself
+ * where the battery's state allows it. Pass `undefined` for the current on a model without an inverter.
  *
  * The ratio lands near 0.996 rather than exactly 1 on a healthy reply: the mean of the *highest and lowest*
  * cell slightly overstates the mean cell, so the pack it gives sits a little above the inverter's input. That
  * is a property of which two registers the device publishes, not an error, and {@link CELL_TOLERANCE} is wide
  * enough to cover it and far too narrow to admit a misparse.
  */
-export function batteryFrom(values: readonly number[], current: number): Battery {
+export function batteryFrom(values: readonly number[], current: number | undefined): Battery {
   if (values.length < BATTERY_REGISTERS.count) {
     throw new ModbusError(`expected ${BATTERY_REGISTERS.count} registers, got ${values.length}`);
   }
@@ -338,21 +348,21 @@ export function batteryFrom(values: readonly number[], current: number): Battery
   const cellMax = at(99) / 1000;
   const cellMin = at(100) / 1000;
   const pack = ((cellMax + cellMin) / 2) * CELLS;
-  const inverterInput = at(112) / 10;
-  const amps = (current - 30000) / 10;
-  const ratio = pack === 0 ? 0 : inverterInput / pack;
 
-  return {
-    cellMax,
-    cellMin,
-    pack,
-    inverterInput,
-    current: amps,
-    cycles: at(101),
-    health: at(102),
-    ratio,
-    consistent: Math.abs(amps) < CHECK_CURRENT ? undefined : Math.abs(ratio - 1) <= CELL_TOLERANCE,
-  };
+  let check: BatteryCheck | undefined;
+  if (current !== undefined) {
+    const inverterInput = at(112) / 10;
+    const amps = (current - 30000) / 10;
+    const ratio = pack === 0 ? 0 : inverterInput / pack;
+    check = {
+      inverterInput,
+      current: amps,
+      ratio,
+      consistent: Math.abs(amps) < CHECK_CURRENT ? undefined : Math.abs(ratio - 1) <= CELL_TOLERANCE,
+    };
+  }
+
+  return { cellMax, cellMin, pack, cycles: at(101), health: at(102), check };
 }
 
 function hex8(value: number): string {

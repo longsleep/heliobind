@@ -366,11 +366,12 @@
               <button id="register-read" type="button">Read</button>
               <button id="register-versions" class="clear" type="button">Component versions</button>
               <!--
-                A read whose reply checks itself: the pack voltage against the two cell voltages, all three
-                in one answer. The button to press when a reading looks wrong and the question is whether
-                the device or this app is at fault.
+                The battery's cells, pack voltage, cycles and health. On a NEXA 2000 the reply checks itself
+                while the battery carries current: the inverter's input voltage against the two cell voltages,
+                all three in one answer — the button to press when a reading looks wrong and the question is
+                whether the device or this app is at fault. A NOAH 2000 has no inverter and gets no check.
               -->
-              <button id="register-battery" class="clear" type="button">Battery self-check</button>
+              <button id="register-battery" class="clear" type="button">Battery</button>
             </div>
           </details>
         </div>

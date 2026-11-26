@@ -574,13 +574,14 @@ async function readVersions(): Promise<void> {
 }
 
 /**
- * Read the battery block and say whether the reply agrees with itself.
+ * Read the battery block, and on a NEXA 2000 say whether the reply agrees with itself.
  *
- * The only read here that needs nothing else to be believed: under load the inverter's input voltage and
- * the two cell voltages come back together and must agree, so a consistent answer rules out a codec fault.
- * That is the point of the button — not the readings, which anything on the network can show, but the
- * *check*, which nothing else on this transport offers. While the battery idles the inverter's input
- * floats, so the check is reported as not made rather than as failed.
+ * On a NEXA the only read here that needs nothing else to be believed: under load the inverter's input
+ * voltage and the two cell voltages come back together and must agree, so a consistent answer rules out a
+ * codec fault. That is the point of the button there — the *check*, which nothing else on this transport
+ * offers. While the battery idles the inverter's input floats, so the check is reported as not made rather
+ * than as failed. A NOAH 2000 has no inverter: it gets the readings, and the check is reported as not
+ * available.
  *
  * A wrong inner checksum is dropped by the sub-MCU rather than refused, so silence here means either a
  * codec bug or a device that is not answering, and the two look identical. The consistency line is what
@@ -593,24 +594,29 @@ async function readBattery(): Promise<void> {
   await whileBusy([dom.registerBattery], async () => {
     try {
       const battery = await session.batteryReadings();
-      const ratio = `inverter input ${battery.inverterInput.toFixed(1)} V, ${battery.ratio.toFixed(3)} of sixteen cells`;
-      const verdict =
-        battery.consistent === undefined
-          ? `not made: the battery is idle (${battery.current.toFixed(1)} A), and the inverter's input floats ` +
+      const { check } = battery;
+      const ratio = check
+        ? `inverter input ${check.inverterInput.toFixed(1)} V, ${check.ratio.toFixed(3)} of sixteen cells`
+        : "";
+      const verdict = !check
+        ? "not available: this model has no inverter, so there is no input voltage to check the cells against"
+        : check.consistent === undefined
+          ? `not made: the battery is idle (${check.current.toFixed(1)} A), and the inverter's input floats ` +
             "then — try again while it charges or discharges"
-          : battery.consistent
+          : check.consistent
             ? `consistent (${ratio})`
             : `INCONSISTENT (${ratio}) — suspect the reply, not the battery`;
       appendResult(
         `battery: pack ${battery.pack.toFixed(1)} V from the cells, cells ${battery.cellMin.toFixed(3)}–` +
-          `${battery.cellMax.toFixed(3)} V, ${battery.current.toFixed(1)} A, ${battery.cycles} cycles, ` +
-          `${battery.health}% health`,
+          `${battery.cellMax.toFixed(3)} V, ` +
+          (check ? `${check.current.toFixed(1)} A, ` : "") +
+          `${battery.cycles} cycles, ${battery.health}% health`,
       );
       appendResult(`  self-check: ${verdict}`);
       log(`battery self-check: ${verdict}`);
     } catch (error) {
-      appendResult(`battery self-check: ${reasonOf(error)}`);
-      log(`battery self-check unavailable: ${reasonOf(error)}`);
+      appendResult(`battery readings: ${reasonOf(error)}`);
+      log(`battery readings unavailable: ${reasonOf(error)}`);
     }
   });
 }

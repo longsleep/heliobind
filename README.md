@@ -21,9 +21,9 @@ owners have since connected, authenticated and read its registers with it. The o
 tried.
 
 **The registers behind the datalogger are per model.** _Component versions_ knows where the NEXA 2000 and
-the NOAH 2000 keep theirs, and the _Battery self-check_ is NEXA-only: on a NOAH nothing among the known
-registers is the pack voltage it compares against. A register a model does not serve is reported as not
-served.
+the NOAH 2000 keep theirs. _Battery_ reads the cells, pack voltage, cycles and health on both, and on a NEXA
+checks the reply against itself while the battery carries current; a NOAH has no inverter whose input
+voltage the cells could be checked against. A register a model does not serve is reported as not served.
 
 **It reads everything and changes three things.** Discovery, connection and a read of any configuration
 parameter; and writes for the settings that decide whether the device can be reached at all — the Wi-Fi

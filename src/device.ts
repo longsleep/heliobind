@@ -212,25 +212,22 @@ export class Device {
   }
 
   /**
-   * The battery's cells and pack voltage, in a reply that proves itself while the battery carries current.
+   * The battery's cells, pack voltage, cycles and health; on a NEXA 2000, in a reply that proves itself while
+   * the battery carries current.
    *
-   * The one read on this transport whose answer can be believed without checking it against another: under
-   * load the inverter's input voltage and the two cell voltages arrive together and must agree
+   * On a NEXA the one read on this transport whose answer can be believed without checking it against
+   * another: under load the inverter's input voltage and the two cell voltages arrive together and must agree
    * arithmetically, so a wrong codec cannot produce a consistent one. While the battery idles the input floats
-   * and there is nothing to check; the current, read separately, says which. See {@link BATTERY_REGISTERS}
-   * for why that is worth a method.
+   * and there is nothing to check; the current, read separately, says which. A NOAH 2000 has no inverter, so
+   * it gets the readings without a check. See {@link BATTERY_REGISTERS}.
    *
    * Use it when an answer looks wrong and the question is whether the device or this app is at fault. A
    * refusal or silence is an answer too — an older sub-MCU image serves a shorter block.
    */
   async batteryReadings(): Promise<Battery> {
     const model = await this.model();
-    if (model !== "nexa") {
-      throw new DeviceError(
-        "not available on a NOAH 2000: its pack voltage is not among the registers known",
-      );
-    }
     const answer = await this.readRegisters("input", BATTERY_REGISTERS.start, BATTERY_REGISTERS.count);
+    if (model !== "nexa") return batteryFrom(answer.values, undefined);
     const current = await this.readRegisters("input", BATTERY_CURRENT);
     return batteryFrom(answer.values, current.values[0]!);
   }
