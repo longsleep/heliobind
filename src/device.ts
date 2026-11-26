@@ -23,6 +23,7 @@ import {
   writeConfigBody,
 } from "./protocol/frame.ts";
 import {
+  BATTERY_CURRENT,
   BATTERY_REGISTERS,
   type Battery,
   batteryFrom,
@@ -211,11 +212,13 @@ export class Device {
   }
 
   /**
-   * The battery's cells and pack voltage, in a reply that proves itself.
+   * The battery's cells and pack voltage, in a reply that proves itself while the battery carries current.
    *
-   * The one read on this transport whose answer can be believed without checking it against another: the
-   * pack voltage and the two cell voltages arrive together and must agree arithmetically, so a wrong codec
-   * cannot produce a consistent one. See {@link BATTERY_REGISTERS} for why that is worth a method.
+   * The one read on this transport whose answer can be believed without checking it against another: under
+   * load the inverter's input voltage and the two cell voltages arrive together and must agree
+   * arithmetically, so a wrong codec cannot produce a consistent one. While the battery idles the input floats
+   * and there is nothing to check; the current, read separately, says which. See {@link BATTERY_REGISTERS}
+   * for why that is worth a method.
    *
    * Use it when an answer looks wrong and the question is whether the device or this app is at fault. A
    * refusal or silence is an answer too — an older sub-MCU image serves a shorter block.
@@ -228,7 +231,8 @@ export class Device {
       );
     }
     const answer = await this.readRegisters("input", BATTERY_REGISTERS.start, BATTERY_REGISTERS.count);
-    return batteryFrom(answer.values);
+    const current = await this.readRegisters("input", BATTERY_CURRENT);
+    return batteryFrom(answer.values, current.values[0]!);
   }
 
   /**
